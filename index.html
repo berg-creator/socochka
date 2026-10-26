@@ -193,7 +193,7 @@ function render() {
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button><button data-paper="1">+1</button><button data-paper="4">+4 купил</button></div>`;
 
-  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button></div>`;
+  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
   $('requests').innerHTML = note || (open.length ? open.sort((a, b) => b.ts - a.ts).map(reqRow).join('') : '<p class="muted">Открытых заявок нет 👌</p>')
     + (done.length ? `<details class="fold"><summary>Сделано (${done.length})</summary>${done.map(reqRow).join('')}</details>` : '');
@@ -205,7 +205,7 @@ function render() {
     last = g;
     return h + `<div class="row head"><div class="date"><b>${d.getDate()}</b>${d.toLocaleDateString('ru-RU', {month: 'short'})}<br>${d.toLocaleDateString('ru-RU', {weekday: 'short'})}</div>
       <div class="grow"><div class="name">${esc(e.title)}${ok(e) ? ' ✅' : ''}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
-      <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button><button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button></div>`;
+      <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
 
   renderCal();
