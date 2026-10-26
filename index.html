@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Соцочка — уборка</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
+<style>
+:root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e}
+@media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#222;--text:#f2f2f2;--muted:#9a9a9a;--line:#3a3a3a;--gold:#f0c040}}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:24px 16px}
+main{width:100%;max-width:440px}
+h1{margin:0;font-size:32px}
+h2{font-size:15px;color:var(--muted);font-weight:500;margin:28px 0 10px}
+.nav{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
+.nav button{font-size:20px;width:44px;height:44px;border:0;border-radius:12px;background:var(--card);color:var(--text);cursor:pointer}
+.week{text-align:center;color:var(--muted)}
+.week b{display:block;color:var(--text)}
+.boss{text-align:center;margin:0 0 16px}
+.row{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+.head{display:flex;align-items:center;gap:14px}
+.icon{font-size:32px;width:44px;text-align:center;flex:none}
+.name{font-weight:600;font-size:18px}
+.muted{color:var(--muted)}
+.score{margin-left:auto;color:var(--gold);font-weight:600;white-space:nowrap}
+.rev,details{margin:8px 0 0 58px;font-size:14px}
+.rev .score{margin:0}
+summary{cursor:pointer;color:var(--muted)}
+form{display:grid;gap:8px;margin-top:8px}
+select,input,form button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+</style>
+</head>
+<body>
+<main>
+<h1>🧹 Соцочка</h1>
+<div class="nav"><button id="prev" aria-label="Неделя назад">←</button><div class="week" id="week"></div><button id="next" aria-label="Неделя вперёд">→</button></div>
+<p class="boss" id="boss"></p>
+<div id="list"></div>
+<h2>Рейтинг</h2>
+<div id="rating"></div>
+</main>
+<script>
+const people = ['Миша', 'Паша', 'Максим', 'Карим'];
+const objects = [['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
+const START = Date.UTC(2026, 9, 26); // понедельник, с которого действует график выше
+const WEEK = 7 * 864e5;
+// адрес Firebase Realtime Database; пока пусто — отзывы выключены
+// ponytail: без логина, любой со ссылкой может писать от чужого имени; Firebase Auth, если начнут хулиганить
+const DB = '';
+
+const t = new Date();
+const today = Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
+let w = today, reviews = [], note = DB ? 'Загрузка…' : 'Отзывы выключены: база не подключена';
+let me = ''; try { me = localStorage.me || ''; } catch {}
+
+const mod = n => (n % 4 + 4) % 4;
+const fmt = d => new Date(d).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', timeZone: 'UTC'});
+const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+const $ = id => document.getElementById(id);
+
+function render() {
+  const label = {[today]: 'Эта неделя', [today + 1]: 'Следующая неделя', [today - 1]: 'Прошлая неделя'}[w] || '&nbsp;';
+  $('week').innerHTML = `<b>${label}</b>${fmt(START + w * WEEK)} — ${fmt(START + w * WEEK + 6 * 864e5)}`;
+  // староста тоже по очереди: эта неделя — Миша, дальше Паша, Максим, Карим
+  const boss = people[mod(w)];
+  $('boss').textContent = `👑 Староста: ${boss} — принимает объекты`;
+
+  // каждую неделю объекты сдвигаются вниз на одного человека
+  $('list').innerHTML = people.map((p, i) => {
+    const [icon, obj] = objects[mod(i - w)];
+    const mine = reviews.filter(r => r.week === w && r.who === p);
+    const status = mine.length ? '<span class="score">✅ принято</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
+    const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span></div>`).join('');
+    const def = me && me !== p ? me : boss;
+    const form = note || w > today ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
+      <select name="by" aria-label="Кто оценивает">${people.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
+      <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
+      <input name="text" maxlength="500" placeholder="Комментарий">
+      <button>Отправить</button></form></details>`;
+    return `<div class="row"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
+  }).join('');
+
+  $('rating').innerHTML = note || people.map(p => {
+    const s = reviews.filter(r => r.who === p).map(r => r.score);
+    return [p, s.length ? s.reduce((a, b) => a + b) / s.length : 0, s.length];
+  }).sort((a, b) => b[1] - a[1]).map(([p, avg, n], i) =>
+    `<div class="row head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}</div></div><span class="score">${n ? avg.toFixed(1) + ' ★' : '—'}</span></div>`
+  ).join('');
+}
+
+$('prev').onclick = () => { w--; render(); };
+$('next').onclick = () => { w++; render(); };
+
+$('list').addEventListener('submit', async e => {
+  e.preventDefault();
+  const f = e.target, d = new FormData(f), btn = f.querySelector('button');
+  const r = {week: w, who: f.dataset.who, by: d.get('by'), score: +d.get('score'), text: d.get('text').trim(), ts: Date.now()};
+  btn.disabled = true;
+  me = r.by; try { localStorage.me = me; } catch {}
+  const res = await fetch(DB + '/reviews.json', {method: 'POST', body: JSON.stringify(r)}).catch(() => null);
+  if (!res?.ok) { btn.disabled = false; return alert('Не отправилось, попробуй ещё раз'); }
+  reviews.push(r);
+  render();
+});
+
+render();
+if (DB) fetch(DB + '/reviews.json').then(res => res.json()).then(data => {
+  reviews = Object.values(data || {}).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
+  note = '';
+}).catch(() => { note = 'Отзывы не загрузились — обнови страницу'; }).finally(render);
+</script>
+</body>
+</html>
