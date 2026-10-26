@@ -3,7 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Соцочка — уборка</title>
+<title>Соцочка</title>
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
 <style>
 :root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e}
@@ -42,15 +44,16 @@ select,input,form button{font:inherit;padding:8px 10px;border-radius:10px;border
 </main>
 <script>
 const people = ['Миша', 'Паша', 'Максим', 'Карим'];
-const objects = [['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
+const bosses = ['Максим', 'Паша', 'Карим', 'Миша']; // староста по очереди, начиная с этой недели
+const objects =[['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
 const START = Date.UTC(2026, 9, 26); // понедельник, с которого действует график выше
 const WEEK = 7 * 864e5;
 // адрес Firebase Realtime Database; пока пусто — отзывы выключены
 // ponytail: без логина, любой со ссылкой может писать от чужого имени; Firebase Auth, если начнут хулиганить
 const DB = '';
 
-const t = new Date();
-const today = Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
+const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
+const today = weekNow();
 let w = today, reviews = [], note = DB ? 'Загрузка…' : 'Отзывы выключены: база не подключена';
 let me = ''; try { me = localStorage.me || ''; } catch {}
 
@@ -63,8 +66,7 @@ const $ = id => document.getElementById(id);
 function render() {
   const label = {[today]: 'Эта неделя', [today + 1]: 'Следующая неделя', [today - 1]: 'Прошлая неделя'}[w] || '&nbsp;';
   $('week').innerHTML = `<b>${label}</b>${fmt(START + w * WEEK)} — ${fmt(START + w * WEEK + 6 * 864e5)}`;
-  // староста тоже по очереди: эта неделя — Максим, дальше Карим, Миша, Паша
-  const boss = people[mod(w + 2)];
+  const boss = bosses[mod(w)];
   $('boss').textContent = `👑 Староста: ${boss} — принимает объекты`;
 
   // каждую неделю объекты сдвигаются вниз на одного человека
@@ -110,6 +112,9 @@ if (DB) fetch(DB + '/reviews.json').then(res => res.json()).then(data => {
   reviews = Object.values(data || {}).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
   note = '';
 }).catch(() => { note = 'Отзывы не загрузились — обнови страницу'; }).finally(render);
+
+// с иконки на телефоне страница висит открытой днями — с новой неделей перезагружаемся
+document.addEventListener('visibilitychange', () => { if (!document.hidden && weekNow() !== today) location.reload(); });
 </script>
 </body>
 </html>
