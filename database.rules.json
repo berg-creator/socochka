@@ -13,7 +13,7 @@
     },
     "requests": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists()",
+        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
         ".validate": "(newData.child('kind').val() === 'fix' || newData.child('kind').val() === 'buy') && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "done": {
           ".write": "!data.exists() && newData.exists()",
@@ -23,7 +23,7 @@
     },
     "events": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists()",
+        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
         ".validate": "newData.child('title').isString() && newData.child('title').val().length > 0 && newData.child('title').val().length <= 100 && newData.child('date').isString() && newData.child('date').val().matches(/^20[0-9][0-9]-[01][0-9]-[0-3][0-9]$/) && (!newData.child('time').exists() || newData.child('time').isString() && newData.child('time').val().matches(/^[0-2][0-9]:[0-5][0-9]$/)) && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "votes": {
           "$name": {

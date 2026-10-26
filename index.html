@@ -192,7 +192,7 @@ function render() {
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button><button data-paper="1">+1</button><button data-paper="4">+4 купил</button></div>`;
 
-  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
+  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me && !r.done ? `<button class="del" data-edit="requests" data-id="${esc(r.id)}" title="Изменить">✏️</button>` : ''}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
   $('requests').innerHTML = note || (open.length ? open.sort((a, b) => b.ts - a.ts).map(reqRow).join('') : '<p class="muted">Открытых заявок нет 👌</p>')
     + (done.length ? `<details class="fold"><summary>Сделано (${done.length})</summary>${done.map(reqRow).join('')}</details>` : '');
@@ -204,7 +204,7 @@ function render() {
     last = g;
     return h + `<div class="row head"><div class="date"><b>${d.getDate()}</b>${d.toLocaleDateString('ru-RU', {month: 'short'})}<br>${d.toLocaleDateString('ru-RU', {weekday: 'short'})}</div>
       <div class="grow"><div class="name">${esc(e.title)}${ok(e) ? ' ✅' : ''}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
-      <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
+      <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-edit="events" data-id="${esc(e.id)}" title="Изменить">✏️</button><button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
 
   renderCal();
@@ -286,14 +286,21 @@ $('reqForm').onsubmit = async e => {
 $('evForm').onsubmit = async e => {
   e.preventDefault();
   if (!need()) return;
-  const f = e.target, d = new FormData(f);
+  const f = e.target, d = new FormData(f), id = f.dataset.edit;
   const ev = {title: d.get('title').trim(), date: d.get('date'), by: me, ts: Date.now(), votes: {[me]: true}};
   if (d.get('time')) ev.time = d.get('time');
+  if (id) {
+    const old = events.find(e => e.id === id), moved = old && (old.date !== ev.date || (old.time || '') !== (ev.time || ''));
+    const patch = {title: ev.title, date: ev.date, time: ev.time || null};
+    if (moved) patch.votes = ev.votes; // перенесли — голоса за старую дату не считаем
+    if (await send(`events/${encodeURIComponent(id)}`, 'PATCH', patch, f.querySelector('button'))) { $('evFold').open = false; moved && notify(`📅 ${me} перенёс: ${ev.title}, ${when(ev)} — голосуйте заново`, 'events'); }
+    return;
+  }
   if (await send('events', 'POST', ev, f.querySelector('button'))) { f.reset(); $('evFold').open = false; notify(`🎉 ${me} предлагает: ${ev.title}, ${when(ev)}`, 'events'); }
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del]');
+  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit]');
   if (!b) return;
   const x = b.dataset;
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
@@ -307,6 +314,16 @@ document.addEventListener('click', e => {
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
   if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);
+  if (x.edit === 'requests') {
+    const r = requests.find(r => r.id === x.id), t = prompt('Заявка', r.text)?.trim().slice(0, 200);
+    if (t && t !== r.text) send(`requests/${encodeURIComponent(x.id)}`, 'PATCH', {text: t}, b);
+  }
+  if (x.edit === 'events') {
+    const ev = events.find(e => e.id === x.id), f = $('evForm'), el = f.elements;
+    f.dataset.edit = ev.id; el.title.value = ev.title; el.date.value = ev.date; el.time.value = ev.time || '';
+    f.querySelector('button').textContent = 'Сохранить';
+    $('evFold').open = true; el.title.focus();
+  }
   if (x.del && confirm('Удалить насовсем?')) send(`${x.del}/${encodeURIComponent(x.id)}`, 'DELETE', undefined, b);
   if (x.vote) {
     const on = b.classList.contains('on'), ev = events.find(e => e.id === x.vote);
@@ -314,6 +331,13 @@ document.addEventListener('click', e => {
       .then(ok => ok && !on && ev.votes.length === 2 && notify(`✅ В силе: ${ev.title}, ${when(ev)} — идут ${[...ev.votes, me].join(', ')}`, 'events'));
   }
 });
+
+// закрыл форму посреди правки — правка отменяется (и после сохранения тоже сюда)
+$('evFold').ontoggle = e => {
+  const f = $('evForm');
+  if (e.target.open || !f.dataset.edit) return;
+  delete f.dataset.edit; f.reset(); f.querySelector('button').textContent = 'Предложить';
+};
 
 onhashchange = showTab;
 showTab();
