@@ -319,6 +319,10 @@ onhashchange = showTab;
 showTab();
 render();
 load();
+// живое обновление: Firebase шлёт событие при любом изменении базы, свайп не нужен
+const live = new EventSource(DB + '/.json');
+live.addEventListener('put', load);
+live.addEventListener('patch', load);
 
 // с иконки на телефоне страница висит открытой днями: при возврате подтягиваем свежие данные, с новой неделей перезагружаемся
 document.addEventListener('visibilitychange', () => { if (document.hidden) return; if (weekNow() !== today) location.reload(); else load(); });
