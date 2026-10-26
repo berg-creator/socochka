@@ -63,8 +63,8 @@ const $ = id => document.getElementById(id);
 function render() {
   const label = {[today]: 'Эта неделя', [today + 1]: 'Следующая неделя', [today - 1]: 'Прошлая неделя'}[w] || '&nbsp;';
   $('week').innerHTML = `<b>${label}</b>${fmt(START + w * WEEK)} — ${fmt(START + w * WEEK + 6 * 864e5)}`;
-  // староста тоже по очереди: эта неделя — Миша, дальше Паша, Максим, Карим
-  const boss = people[mod(w)];
+  // староста тоже по очереди: эта неделя — Максим, дальше Карим, Миша, Паша
+  const boss = people[mod(w + 2)];
   $('boss').textContent = `👑 Староста: ${boss} — принимает объекты`;
 
   // каждую неделю объекты сдвигаются вниз на одного человека
