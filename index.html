@@ -8,44 +8,117 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧹</text></svg>">
 <style>
-:root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e}
+:root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e;--red:#e5484d;--yellow:#e8a317;--green:#30a46c}
 @media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#222;--text:#f2f2f2;--muted:#9a9a9a;--line:#3a3a3a;--gold:#f0c040}}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:24px 16px}
 main{width:100%;max-width:440px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:32px}
 h2{font-size:15px;color:var(--muted);font-weight:500;margin:28px 0 10px}
+h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px}
+#me:invalid{border-color:var(--gold);color:var(--gold)}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0 10px}
+.tile{background:var(--card);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none;border-left:4px solid var(--c,var(--card))}
+.tile span{font-size:13px;color:var(--muted)}
+.tile b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tabs{display:flex;gap:4px;padding:4px;background:var(--card);border-radius:14px}
+.tabs a{flex:1;text-align:center;padding:10px 4px;border-radius:10px;color:var(--muted);text-decoration:none;font-weight:600}
+.tabs a.on{background:var(--bg);color:var(--text)}
+.red{--c:var(--red)}.yellow{--c:var(--yellow)}.green{--c:var(--green)}
 .nav{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
 .nav button{font-size:20px;width:44px;height:44px;border:0;border-radius:12px;background:var(--card);color:var(--text);cursor:pointer}
 .week{text-align:center;color:var(--muted)}
 .week b{display:block;color:var(--text)}
 .boss{text-align:center;margin:0 0 16px}
 .row{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+.mine{box-shadow:inset 0 0 0 2px var(--gold)}
+.done{opacity:.55}
 .head{display:flex;align-items:center;gap:14px}
+.grow{flex:1;min-width:0;overflow-wrap:anywhere}
+.end{margin-left:auto;flex:none}
 .icon{font-size:32px;width:44px;text-align:center;flex:none}
 .name{font-weight:600;font-size:18px}
 .muted{color:var(--muted)}
+.small{font-size:13px}
 .score{margin-left:auto;color:var(--gold);font-weight:600;white-space:nowrap}
-.rev,details{margin:8px 0 0 58px;font-size:14px}
+.rev,.row>details{margin:8px 0 0 58px;font-size:14px}
 .rev .score{margin:0}
 summary{cursor:pointer;color:var(--muted)}
+.fold>summary{padding:4px 0 10px}
 form{display:grid;gap:8px;margin-top:8px}
-select,input,form button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+select,input,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);min-width:0}
+button{cursor:pointer}
+.add{grid-template-columns:auto 1fr auto;margin:0 0 10px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.badge{background:var(--c);color:#fff;padding:2px 10px;border-radius:99px;font-size:13px;font-weight:600}
+.bar{height:8px;background:var(--bg);border-radius:4px;margin:12px 0;overflow:hidden}
+.bar i{display:block;height:100%;background:var(--c)}
+.warn{color:var(--red);font-weight:600}
+.ctl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.hint{margin:-4px 0 10px}
+.date{width:44px;flex:none;text-align:center;font-size:12px;color:var(--muted);line-height:1.2}
+.date b{display:block;font-size:22px;color:var(--text)}
+.vote.on{background:var(--green);border-color:var(--green);color:#fff}
+.calhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.calhead b{text-transform:capitalize}
+.calhead button{border:0;width:36px;height:36px;padding:0}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center}
+.grid span{font-size:12px;color:var(--muted)}
+.day{aspect-ratio:1;padding:0;border:0;background:none;position:relative}
+.day.past{color:var(--muted)}
+.day.today{box-shadow:inset 0 0 0 2px var(--gold)}
+.day.sel{background:var(--bg)}
+.day.has::after,.day.ok::after{content:'';position:absolute;bottom:3px;left:50%;width:6px;height:6px;margin-left:-3px;border-radius:50%;background:var(--muted)}
+.day.ok::after{background:var(--green)}
+.dayinfo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:4px}
+.link{border:0;background:none;padding:4px 0;color:var(--gold);text-align:left}
 </style>
 </head>
 <body>
 <main>
-<h1>🧹 Соцочка</h1>
+<header><h1>🧹 Соцочка</h1><select id="me" required aria-label="Кто я"><option value="">Кто я?</option></select></header>
+<div class="tiles" id="tiles"></div>
+<nav class="tabs"><a href="#clean">🧹 Уборка</a><a href="#home">🏠 Дом</a><a href="#events">🎉 События</a></nav>
+
+<section data-tab="clean">
 <div class="nav"><button id="prev" aria-label="Неделя назад">←</button><div class="week" id="week"></div><button id="next" aria-label="Неделя вперёд">→</button></div>
 <p class="boss" id="boss"></p>
 <div id="list"></div>
 <h2>Рейтинг</h2>
 <div id="rating"></div>
+</section>
+
+<section data-tab="home" hidden>
+<h2>Туалетная бумага</h2>
+<div class="row" id="paper"></div>
+<h2>Заявки: ремонт и покупки</h2>
+<form id="reqForm" class="row add">
+  <select name="kind" aria-label="Тип заявки"><option value="fix">🔧 Ремонт</option><option value="buy">🛒 Купить</option></select>
+  <input name="text" maxlength="200" placeholder="Что нужно?" aria-label="Описание" required>
+  <button aria-label="Добавить заявку">＋</button>
+</form>
+<div id="requests"></div>
+</section>
+
+<section data-tab="events" hidden>
+<h2>Афиша — предлагай и голосуй</h2>
+<p class="muted small hint">Событие в силе ✅, когда «за» трое из четверых</p>
+<details class="fold" id="evFold"><summary>＋ Предложить событие</summary><form id="evForm" class="row">
+  <input name="title" maxlength="100" placeholder="Кино, настолки, ужин…" aria-label="Что" required>
+  <div class="two"><input name="date" type="date" aria-label="Дата" required><input name="time" type="time" aria-label="Время"></div>
+  <button>Предложить</button>
+</form></details>
+<div id="events"></div>
+<h2>Календарь</h2>
+<div class="row" id="cal"></div>
+</section>
 </main>
 <script>
 const people = ['Миша', 'Паша', 'Максим', 'Карим'];
 const bosses = ['Максим', 'Паша', 'Карим', 'Миша']; // староста по очереди, начиная с этой недели
 const objects =[['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
+const kinds = {fix: '🔧', buy: '🛒'};
 const START = Date.UTC(2026, 9, 26); // понедельник, с которого действует график выше
 const WEEK = 7 * 864e5;
 // Firebase Realtime Database (проект socochka, правила — database.rules.json)
@@ -54,16 +127,38 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, reviews = [], note = DB ? 'Загрузка…' : 'Отзывы выключены: база не подключена';
+let w = today, reviews = [], paper = null, requests = [], events = [], note = 'Загрузка…';
 let me = ''; try { me = localStorage.me || ''; } catch {}
+let cal = new Date(), sel = '';
+cal.setDate(1);
 
 const mod = n => (n % 4 + 4) % 4;
 const fmt = d => new Date(d).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', timeZone: 'UTC'});
 const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
 const $ = id => document.getElementById(id);
+const iso = d => d.toLocaleDateString('sv-SE'); // ГГГГ-ММ-ДД по местному времени
+const day = s => new Date(s + 'T00:00');
+const short = d => d.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'});
+const stamp = ts => new Date(ts).toLocaleString('ru-RU', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+const plural = (n, f) => f[['one', 'few', 'many'].indexOf(new Intl.PluralRules('ru').select(n))] ?? f[2];
+const lvl = n => n <= 2 ? ['red', 'мало'] : n <= 5 ? ['yellow', 'средне'] : ['green', 'достаточно'];
+const ok = e => e.votes.length >= 3;
+const byWhen = (a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''));
 
 function render() {
+  const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
+  const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.done);
+  const [pc, pw] = lvl(paper?.rolls ?? 0);
+
+  // сводка сверху: главное с первого взгляда, тап ведёт во вкладку
+  $('tiles').innerHTML = [
+    ['clean', '', '👑 Староста', nowBoss],
+    ['home', paper ? pc : '', '🧻 Бумага', paper ? `${paper.rolls} · ${pw}` : '—'],
+    ['home', '', '🔧 Заявки', note ? '—' : open.length ? `${open.length} ${plural(open.length, ['открыта', 'открыты', 'открыто'])}` : 'всё сделано'],
+    ['events', '', '🎉 Ближайшее', up[0] ? `${esc(up[0].title)}, ${short(day(up[0].date))}` : note ? '—' : 'пусто — предложи'],
+  ].map(([t, c, k, v]) => `<a class="tile ${c}" href="#${t}"><span>${k}</span><b>${v}</b></a>`).join('');
+
   const label = {[today]: 'Эта неделя', [today + 1]: 'Следующая неделя', [today - 1]: 'Прошлая неделя'}[w] || '&nbsp;';
   $('week').innerHTML = `<b>${label}</b>${fmt(START + w * WEEK)} — ${fmt(START + w * WEEK + 6 * 864e5)}`;
   const boss = bosses[mod(w)];
@@ -81,7 +176,7 @@ function render() {
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
       <input name="text" maxlength="500" placeholder="Комментарий">
       <button>Отправить</button></form></details>`;
-    return `<div class="row"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
+    return `<div class="row${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
   }).join('');
 
   $('rating').innerHTML = note || people.map(p => {
@@ -90,31 +185,133 @@ function render() {
   }).sort((a, b) => b[1] - a[1]).map(([p, avg, n], i) =>
     `<div class="row head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}</div></div><span class="score">${n ? avg.toFixed(1) + ' ★' : '—'}</span></div>`
   ).join('');
+
+  // бумага: 8 рулонов — полная полоска
+  $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
+    <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
+    <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
+    <div class="ctl"><button data-paper="-1">−1 взял</button><button data-paper="1">+1</button><button data-paper="4">+4 купил</button></div>`;
+
+  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}</div>`;
+  const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
+  $('requests').innerHTML = note || (open.length ? open.sort((a, b) => b.ts - a.ts).map(reqRow).join('') : '<p class="muted">Открытых заявок нет 👌</p>')
+    + (done.length ? `<details class="fold"><summary>Сделано (${done.length})</summary>${done.map(reqRow).join('')}</details>` : '');
+
+  let last = '';
+  $('events').innerHTML = note || up.map(e => {
+    const d = day(e.date), on = e.votes.includes(me), g = ['Эта неделя', 'Следующая неделя'][weekNow(d) - today] || 'Позже';
+    const h = g === last ? '' : `<h3>${g}</h3>`;
+    last = g;
+    return h + `<div class="row head"><div class="date"><b>${d.getDate()}</b>${d.toLocaleDateString('ru-RU', {month: 'short'})}<br>${d.toLocaleDateString('ru-RU', {weekday: 'short'})}</div>
+      <div class="grow"><div class="name">${esc(e.title)}${ok(e) ? ' ✅' : ''}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
+      <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button></div>`;
+  }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
+
+  renderCal();
+}
+
+function renderCal() {
+  const tIso = iso(new Date()), y = cal.getFullYear(), m = cal.getMonth(), byDay = {};
+  events.forEach(e => (byDay[e.date] ||= []).push(e));
+  let cells = '<span></span>'.repeat((new Date(y, m, 1).getDay() + 6) % 7);
+  for (let i = 1; i <= new Date(y, m + 1, 0).getDate(); i++) {
+    const k = iso(new Date(y, m, i)), ev = byDay[k];
+    cells += `<button class="day${k === tIso ? ' today' : ''}${k === sel ? ' sel' : ''}${k < tIso ? ' past' : ''}${ev ? ev.some(ok) ? ' ok' : ' has' : ''}" data-day="${k}">${i}</button>`;
+  }
+  const list = (byDay[sel] || []).sort(byWhen);
+  $('cal').innerHTML = `<div class="calhead"><button data-month="-1" aria-label="Месяц назад">←</button><b>${cal.toLocaleDateString('ru-RU', {month: 'long'})} ${y}</b><button data-month="1" aria-label="Месяц вперёд">→</button></div>
+    <div class="grid">${['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map(d => `<span>${d}</span>`).join('')}${cells}</div>`
+    + (sel ? `<div class="dayinfo"><b>${day(sel).toLocaleDateString('ru-RU', {weekday: 'long', day: 'numeric', month: 'long'})}</b>${list.map(e => `<div>${ok(e) ? '✅' : '•'} ${e.time ? esc(e.time) + ' ' : ''}${esc(e.title)} <span class="muted">👍 ${e.votes.length}</span></div>`).join('') || '<div class="muted">ничего нет</div>'}${sel >= tIso ? '<button class="link" data-propose="1">＋ предложить на этот день</button>' : ''}</div>` : '');
+}
+
+function showTab() {
+  const t = ['home', 'events'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'clean';
+  document.querySelectorAll('section').forEach(s => s.hidden = s.dataset.tab !== t);
+  document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.hash === '#' + t));
+}
+
+function setMe(v) { me = v; $('me').value = v; try { localStorage.me = v; } catch {} }
+
+function need() {
+  if (!me) { alert('Сначала выбери вверху, кто ты'); $('me').focus(); }
+  return !!me;
+}
+
+async function send(path, method, body, btn) {
+  btn.disabled = true;
+  const res = await fetch(`${DB}/${path}.json`, {method, body: JSON.stringify(body)}).catch(() => null);
+  btn.disabled = false;
+  if (!res?.ok) { alert('Не отправилось, попробуй ещё раз'); return false; }
+  await load();
+  return true;
+}
+
+async function load() {
+  try {
+    const res = await fetch(DB + '/.json');
+    if (!res.ok) throw res.status;
+    const data = await res.json() || {};
+    reviews = Object.values(data.reviews || {}).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
+    paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
+    requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
+    events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: people.filter(p => e?.votes?.[p])}))
+      .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
+    note = '';
+  } catch { note = 'Не загрузилось — обнови страницу'; }
+  render();
 }
 
 $('prev').onclick = () => { w--; render(); };
 $('next').onclick = () => { w++; render(); };
+$('me').innerHTML += people.map(p => `<option>${p}</option>`).join('');
+$('me').value = me;
+$('me').onchange = e => { setMe(e.target.value); render(); };
+$('evForm').elements.date.min = iso(new Date());
 
-$('list').addEventListener('submit', async e => {
+$('list').addEventListener('submit', e => {
   e.preventDefault();
-  const f = e.target, d = new FormData(f), btn = f.querySelector('button');
-  const r = {week: w, who: f.dataset.who, by: d.get('by'), score: +d.get('score'), text: d.get('text').trim(), ts: Date.now()};
-  btn.disabled = true;
-  me = r.by; try { localStorage.me = me; } catch {}
-  const res = await fetch(DB + '/reviews.json', {method: 'POST', body: JSON.stringify(r)}).catch(() => null);
-  if (!res?.ok) { btn.disabled = false; return alert('Не отправилось, попробуй ещё раз'); }
-  reviews.push(r);
-  render();
+  const f = e.target, d = new FormData(f);
+  setMe(d.get('by'));
+  send('reviews', 'POST', {week: w, who: f.dataset.who, by: me, score: +d.get('score'), text: d.get('text').trim(), ts: Date.now()}, f.querySelector('button'));
 });
 
-render();
-if (DB) fetch(DB + '/reviews.json').then(res => res.json()).then(data => {
-  reviews = Object.values(data || {}).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
-  note = '';
-}).catch(() => { note = 'Отзывы не загрузились — обнови страницу'; }).finally(render);
+$('reqForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!need()) return;
+  const f = e.target, d = new FormData(f);
+  if (await send('requests', 'POST', {kind: d.get('kind'), text: d.get('text').trim(), by: me, ts: Date.now()}, f.querySelector('button'))) f.reset();
+};
 
-// с иконки на телефоне страница висит открытой днями — с новой неделей перезагружаемся
-document.addEventListener('visibilitychange', () => { if (!document.hidden && weekNow() !== today) location.reload(); });
+$('evForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!need()) return;
+  const f = e.target, d = new FormData(f);
+  const ev = {title: d.get('title').trim(), date: d.get('date'), by: me, ts: Date.now(), votes: {[me]: true}};
+  if (d.get('time')) ev.time = d.get('time');
+  if (await send('events', 'POST', ev, f.querySelector('button'))) { f.reset(); $('evFold').open = false; }
+};
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose]');
+  if (!b) return;
+  const x = b.dataset;
+  if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
+  if (x.day) { sel = sel === x.day ? '' : x.day; return renderCal(); }
+  if (x.propose) { const f = $('evForm').elements; f.date.value = sel; $('evFold').open = true; return f.title.focus(); }
+  if (!need()) return;
+  // ponytail: два одновременных нажатия бумаги — одно потеряется; транзакция через ETag, если начнёт мешать
+  if (x.paper) send('paper', 'PUT', {rolls: Math.max(0, paper.rolls + +x.paper), by: me, ts: Date.now()}, b);
+  if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);
+  if (x.vote) { const on = b.classList.contains('on'); send(`events/${encodeURIComponent(x.vote)}/votes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : true, b); }
+});
+
+onhashchange = showTab;
+showTab();
+render();
+load();
+
+// с иконки на телефоне страница висит открытой днями: при возврате подтягиваем свежие данные, с новой неделей перезагружаемся
+document.addEventListener('visibilitychange', () => { if (document.hidden) return; if (weekNow() !== today) location.reload(); else load(); });
 </script>
 </body>
 </html>
