@@ -1,0 +1,11 @@
+name: Напоминание об уборке
+on:
+  schedule:
+    - cron: '0 6 * * 1' # понедельник, 09:00 МСК
+  workflow_dispatch:
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node .github/remind.js
