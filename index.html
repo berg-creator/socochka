@@ -48,9 +48,9 @@ const bosses = ['Максим', 'Паша', 'Карим', 'Миша']; // ста
 const objects =[['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
 const START = Date.UTC(2026, 9, 26); // понедельник, с которого действует график выше
 const WEEK = 7 * 864e5;
-// адрес Firebase Realtime Database; пока пусто — отзывы выключены
+// Firebase Realtime Database (проект socochka, правила — database.rules.json)
 // ponytail: без логина, любой со ссылкой может писать от чужого имени; Firebase Auth, если начнут хулиганить
-const DB = '';
+const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
