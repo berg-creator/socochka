@@ -178,6 +178,9 @@ const iso = d => d.toLocaleDateString('sv-SE'); // ГГГГ-ММ-ДД по ме�
 const day = s => new Date(s + 'T00:00');
 const short = d => d.toLocaleDateString('ru-RU', {day: 'numeric', month: 'short'});
 const stamp = ts => new Date(ts).toLocaleString('ru-RU', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'});
+// таймер старосты: сколько осталось до срока t (ч:мм:сс); тикает каждую секунду, по истечении — перерисовка («просрочено»)
+const left = t => { const s = Math.max(0, Math.ceil((t - Date.now()) / 1000)); return `${Math.floor(s / 3600)}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; };
+setInterval(() => document.querySelectorAll('[data-left]').forEach(el => el.dataset.left <= Date.now() ? render() : el.textContent = left(+el.dataset.left)), 1000);
 const plural = (n, f) => f[['one', 'few', 'many'].indexOf(new Intl.PluralRules('ru').select(n))] ?? f[2];
 const lvl = n => n <= 2 ? ['red', 'мало'] : n <= 5 ? ['yellow', 'средне'] : ['green', 'достаточно'];
 const ok = e => e.votes.length >= 3;
@@ -274,7 +277,7 @@ function render() {
   const dl = paper?.low && Math.max(paper.low, START + today * WEEK) + DAY; // до когда старосте купить без штрафа
   $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
-    <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу${dl ? Date.now() < dl ? ` до ${stamp(dl)}, иначе −${NOBUY} балл` : ` — просрочено, −${NOBUY} балл` : ''}` : `Следит староста: ${nowBoss}`}</p>
+    <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу${dl ? Date.now() < dl ? `: ⏳ <b data-left="${dl}">${left(dl)}</b> (до ${stamp(dl)}), иначе −${NOBUY} балл` : ` — просрочено, −${NOBUY} балл` : ''}` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button>${me === nowBoss ? '<button data-buy="8">+8 купил</button><button data-buy="">другое…</button>' : ''}</div>`;
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
