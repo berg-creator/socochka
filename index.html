@@ -8,7 +8,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.png?v=3">
 <style>
-:root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e;--red:#e5484d;--yellow:#e8a317;--green:#30a46c}
+:root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e;--red:#e5484d;--orange:#f76b15;--yellow:#e8a317;--green:#30a46c}
 @media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#222;--text:#f2f2f2;--muted:#9a9a9a;--line:#3a3a3a;--gold:#f0c040}}
 *{box-sizing:border-box}
 body{margin:0;font:16px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:24px 16px}
@@ -36,7 +36,9 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05
 section:not([hidden]){animation:slide .25s ease-out}
 @keyframes slide{from{opacity:0;transform:translateX(var(--dx,0))}}
 @media (prefers-reduced-motion:reduce){section{animation:none!important}}
-.red{--c:var(--red)}.yellow{--c:var(--yellow)}.green{--c:var(--green)}
+.red{--c:var(--red)}.orange{--c:var(--orange)}.yellow{--c:var(--yellow)}.green{--c:var(--green)}
+/* карточка объекта окрашена по статусу: грязно → чисто → принято */
+.row:is(.red,.orange,.green){background:color-mix(in srgb,var(--c) 16%,var(--card))}
 .nav{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
 .nav button{font-size:20px;width:44px;height:44px;border:0;border-radius:12px;background:var(--card);color:var(--text);cursor:pointer}
 .week{text-align:center;color:var(--muted)}
@@ -55,7 +57,7 @@ a.row{color:inherit;text-decoration:none}
 .muted{color:var(--muted)}
 .small{font-size:13px}
 .score{margin-left:auto;color:var(--gold);font-weight:600;white-space:nowrap}
-.rev,.row>details{margin:8px 0 0 58px;font-size:14px}
+.rev,.row>details,.row>[data-cleaned],.row>[data-accept]{margin:8px 0 0 58px;font-size:14px}
 .rev{white-space:pre-line}
 .rev .score{margin:0}
 summary{cursor:pointer;color:var(--muted)}
@@ -147,7 +149,7 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, shownW, tab, reviews = [], cleaned = {}, paper = null, buys = [], requests = [], events = [], note = 'Загрузка…';
+let w = today, shownW, tab, reviews = [], cleaned = {}, accepted = {}, paper = null, buys = [], requests = [], events = [], note = 'Загрузка…';
 let me = ''; try { me = localStorage.me || ''; } catch {}
 let cal = new Date(), sel = '';
 cal.setDate(1);
@@ -156,6 +158,8 @@ const mod = n => (n % 4 + 4) % 4;
 const fmt = d => new Date(d).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', timeZone: 'UTC'});
 const esc = s => String(s).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
 const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+// статус объекта за неделю: [цвет, подпись]
+const state = (acc, done) => acc ? ['green', '✓ принято'] : done ? ['orange', '+ чисто'] : ['red', '✕ грязно'];
 const $ = id => document.getElementById(id);
 const iso = d => d.toLocaleDateString('sv-SE'); // ГГГГ-ММ-ДД по местному времени
 const day = s => new Date(s + 'T00:00');
@@ -194,16 +198,18 @@ function render() {
     const [icon, obj] = objects[mod(i - w)];
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const done = cleaned[w]?.[p];
-    const status = mine.length ? '<span class="score">✅ принято</span>' : done ? '<span class="score">🧹 убрано</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
+    const acc = accepted[w]?.[p];
+    const [sc, st] = note || w > today ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
     const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span>${r.by === me ? `<button class="del" data-edit="reviews" data-id="${esc(r.id)}" title="Изменить">✏️</button><button class="del" data-del="reviews" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`).join('');
     const def = me && me !== p ? me : boss;
-    // своё не оценивают — вместо отзыва отмечают, что убрали, и староста получает уведомление
-    const form = note || w > today ? '' : p === me ? (w === today && !done && !mine.length ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : '') : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
+    // своё отмечают «убрал», принимает только староста; отзыв — отдельно и на статус не влияет
+    const act = acc ? '' : p === me && w === today && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
+    const form = note || w > today ? '' : act + (p === me ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Оставить отзыв'}</summary><form data-who="${p}">
       <select name="by" aria-label="Кто оценивает">${members.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий"></textarea>
-      <button>Отправить</button></form></details>`;
-    return `<div class="row${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
+      <button>Отправить</button></form></details>`);
+    return `<div class="row ${sc || ''}${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
   }).join('');
   shownW = w;
 
@@ -227,8 +233,8 @@ function render() {
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.length > 0);
   const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
   const ri = rank.findIndex(r => r[0] === me), [, avg, rn] = rank[ri] || [], about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
-  const st = i < 0 ? '' : reviews.some(r => r.week === today && r.who === me) ? '✅ принято' : cleaned[today]?.[me] ? '🧹 убрано, ждёт старосту' : 'надо убрать';
-  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div><div class="muted small">${st}</div></div></a>`
+  const [sc, st] = state(accepted[today]?.[me], cleaned[today]?.[me]);
+  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div><span class="end badge ${sc}">${st}</span></a>`
       + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${rn ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${rn ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}</div></div><span class="score">${rn ? avg.toFixed(1) + ' ★' : '—'}</span></div>`
       + (about.length ? `<details class="fold"><summary>Отзывы обо мне (${about.length})</summary>${about.map(r => `<div class="row"><span class="score">${stars(r.score)}</span> <span class="muted small">${esc(r.by)}, неделя с ${fmt(START + r.week * WEEK)}</span><div class="rev" style="margin:4px 0 0">${esc(r.text || '')}</div></div>`).join('')}</details>` : ''))
     + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div><button class="end" data-paid="${esc(b.id)}" data-name="${me}">Отдал</button></div>`).join('') || '<p class="muted">Ничего 👌</p>')
@@ -300,6 +306,7 @@ async function load() {
     const data = await res.json() || {};
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id})).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
     cleaned = data.cleaned || {};
+    accepted = data.accepted || {};
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     buys = Object.entries(data.buys || {}).map(([id, b]) => ({...b, id, paid: b.paid || {}})).filter(b => Number.isInteger(b.n) && Number.isFinite(b.price) && typeof b.by === 'string');
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
@@ -364,7 +371,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned]');
+  const b = e.target.closest('button[data-paper],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept]');
   if (!b) return;
   const x = b.dataset;
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
@@ -384,6 +391,7 @@ document.addEventListener('click', e => {
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
   if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
+  if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
   if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);
   if (x.edit === 'requests') {
     const r = requests.find(r => r.id === x.id), t = prompt('Заявка', r.text)?.trim().slice(0, 200);
