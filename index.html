@@ -437,7 +437,7 @@ async function load() {
     accepted = data.accepted || {};
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     trash = typeof data.trash?.full === 'boolean' ? data.trash : null;
-    trashOut = Object.values(data.trashOut || {}).filter(o => typeof o?.by === 'string');
+    trashOut = trashCap(Object.values(data.trashOut || {}).filter(o => typeof o?.by === 'string' && typeof o.ts === 'number'));
     buys = Object.entries(data.buys || {}).map(([id, b]) => ({...b, id, paid: b.paid || {}})).filter(b => Number.isInteger(b.n) && Number.isFinite(b.price) && typeof b.by === 'string');
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
@@ -547,7 +547,10 @@ document.addEventListener('click', e => {
   }
   if (x.trash === 'full') send('trash', 'PUT', {full: true, by: me, ts: Date.now()}, b).then(ok => ok && notify(`🗑 Мусорка переполнена — кто вынесет? Отметил ${me}`, 'home'));
   // ponytail: «вынес» только после «переполнена» — +1 за бак; кто нажал, на доверии, как и всё без входа
-  if (x.trash === 'out' && trash?.full) { const ts = Date.now(), o = {by: me, ts, with: $('with').value || undefined}; send('', 'PATCH', {trash: {full: false, ...o}, ['trashOut/' + ts]: o}, b); }
+  if (x.trash === 'out' && trash?.full) { const ts = Date.now(), o = {by: me, ts, with: $('with').value || undefined};
+    // сверх TRASH в сутки баллы и так не идут (trashCap в shared.js) — тут только предупреждаем
+    if (!trashCap([...trashOut, o]).includes(o)) return alert(`${o.with ? 'Ты или ' + o.with : 'Ты'} уже выносил мусор ${TRASH} раза сегодня — следующий вынос засчитается завтра`);
+    send('', 'PATCH', {trash: {full: false, ...o}, ['trashOut/' + ts]: o}, b); }
   if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
   if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
   if (x.mark) send(`marks/${w}/${x.who}`, 'PUT', +x.mark, b);

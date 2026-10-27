@@ -16,6 +16,17 @@ const ALL = DB + '/.json?orderBy="$key"&endAt="~"';
 const LATE = 5;
 // вынос мусора: один — 2 балла, вдвоём (with) — по 1 каждому
 const trashPts = (o, p) => o.by === p ? (o.with ? 1 : 2) : o.with === p ? 1 : 0;
+// не больше TRASH выносов в сутки (по Москве) на человека: вынос, где кто-то из двоих уже набрал TRASH, не засчитывается
+const TRASH = 2, msk = ts => Math.floor((ts + 3 * 36e5) / 864e5);
+function trashCap(list) {
+  const n = {};
+  return [...list].sort((a, b) => a.ts - b.ts).filter(o => {
+    const k = [o.by, o.with].filter(Boolean).map(p => p + msk(o.ts));
+    if (k.some(x => n[x] >= TRASH)) return false;
+    k.forEach(x => n[x] = (n[x] || 0) + 1);
+    return true;
+  });
+}
 const due = n => START + n * WEEK + 9 * 864e5;
 const late = (cleaned, accepted, p, n) => !(cleaned[n]?.[p] < due(n) || accepted[n]?.[p] < due(n));
 // доброе дело засчитано вторым голосом «за» (голос — время нажатия): с этого момента автору +DEED
@@ -33,7 +44,7 @@ function verdict(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = 
   const n = Math.floor((now - due(0)) / WEEK), at = due(n);
   const score = n < 0 ? [] : people.flatMap(p => { // n < 0 — до первой среды недели ещё нет
     const s = marks[n]?.[p], b = bosses[n % 4] === p && nobuy(lw, n, now);
-    const t = trashOut.filter(o => Math.floor((o.ts - START) / WEEK) === n).reduce((a, o) => a + trashPts(o, p), 0), l = late(cleaned, accepted, p, n);
+    const t = trashCap(trashOut).filter(o => Math.floor((o.ts - START) / WEEK) === n).reduce((a, o) => a + trashPts(o, p), 0), l = late(cleaned, accepted, p, n);
     const g = deeds.filter(d => d.by === p && Math.floor((deedAt(d) - START) / WEEK) === n).length * DEED;
     return s || l || b ? [[p, Math.round(((s || 0) + t + g - l * LATE - b * NOBUY) * 100) / 100]] : [];
   });
@@ -41,4 +52,4 @@ function verdict(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = 
   return {n, min, who: score.filter(x => x[1] === min).map(x => x[0]),
     req: requests.filter(r => r.ts < at && !(r.done?.ts < at)).sort((a, b) => a.ts - b.ts)[0]};
 }
-if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, trashPts, due, late, deedAt, lows, nobuy, verdict};
+if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, due, late, deedAt, lows, nobuy, verdict};
