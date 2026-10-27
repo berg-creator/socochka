@@ -233,9 +233,9 @@ function render() {
   const rank = people.map(p => {
     const s = Object.values(marks).map(m => m?.[p]).filter(Number.isInteger), t = trashOut.filter(o => o.by === p).length;
     const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length;
-    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t / 10 - l * LATE, s.length, t, l];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + 0.1 за вынос мусора − LATE за каждую просроченную уборку
-  const extra = (t, l) => (t ? ` · 🗑 ${t} (+${(t / 10).toFixed(1)})` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
+    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t - l * LATE, s.length, t, l];
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + 1 за вынос мусора − LATE за каждую просроченную уборку
+  const extra = (t, l) => (t ? ` · 🗑 ${t} (+${t})` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l], i) =>
     `<div class="row head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
   ).join('');
@@ -248,12 +248,12 @@ function render() {
   $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
-    <div class="ctl"><button data-paper="-1">−1 взял</button><button data-buy="8">+8 купил</button><button data-buy="">другое…</button></div>`;
+    <div class="ctl"><button data-paper="-1">−1 взял</button>${me === nowBoss ? '<button data-buy="8">+8 купил</button><button data-buy="">другое…</button>' : ''}</div>`;
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
   const full = trash?.full;
   $('trash').innerHTML = note || `<div class="head"><span class="icon">🗑</span><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : 'вынес'} ${esc(trash.by)}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
-    <div class="two"><button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out">Вынес</button></div>`;
+    <div class="two"><button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
 
   // личное: свой объект и деньги за бумагу
   const owe = people.includes(me) ? buys.filter(b => b.by !== me && !b.paid[me]) : [];
@@ -426,8 +426,8 @@ document.addEventListener('click', e => {
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
   if (x.trash === 'full') send('trash', 'PUT', {full: true, by: me, ts: Date.now()}, b).then(ok => ok && notify(`🗑 Мусорка переполнена — кто вынесет? Отметил ${me}`, 'home'));
-  // ponytail: балл за «вынес» на доверии, как и всё без входа; лимит раз в N часов, если начнут накручивать
-  if (x.trash === 'out') { const ts = Date.now(); send('', 'PATCH', {trash: {full: false, by: me, ts}, ['trashOut/' + ts]: {by: me, ts}}, b); }
+  // ponytail: «вынес» только после «переполнена» — +1 за бак; кто нажал, на доверии, как и всё без входа
+  if (x.trash === 'out' && trash?.full) { const ts = Date.now(); send('', 'PATCH', {trash: {full: false, by: me, ts}, ['trashOut/' + ts]: {by: me, ts}}, b); }
   if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
   if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
   if (x.mark) send(`marks/${w}/${x.who}`, 'PUT', +x.mark, b);

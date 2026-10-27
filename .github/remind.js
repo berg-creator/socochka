@@ -5,6 +5,7 @@ const send = (title, message, tab) => fetch('https://ntfy.sh/', {method: 'POST',
 const mod = n => (n % 4 + 4) % 4, w = Math.floor((Date.now() - START) / WEEK);
 if (new Date().getUTCDay() === 3) fetch(DB + '/.json').then(r => r.json()).then(d => {
   const v = verdict(d?.marks || {}, Object.values(d?.requests || {}), Object.values(d?.trashOut || {}), d?.cleaned || {}, d?.accepted || {});
+  if (v.n < 0) return;
   return send('⚖️ Итоги недели', !v.who.length ? 'Оценок и просрочек за неделю не было — без штрафа'
     : `👎 Худший рейтинг: ${v.who.join(' и ')} (${v.min.toFixed(1)} ★)\n` + (v.req ? `🔧 Выполняет заявку: ${v.req.text}` : 'Открытых заявок нет — повезло'), 'clean');
 });
