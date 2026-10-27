@@ -3,7 +3,7 @@
     ".read": true,
     "reviews": {
       "$id": {
-        ".write": "!data.exists()",
+        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
         ".validate": "newData.child('week').isNumber() && newData.child('who').isString() && newData.child('by').isString() && newData.child('score').isNumber() && newData.child('score').val() >= 1 && newData.child('score').val() <= 5 && newData.child('text').isString() && newData.child('text').val().length <= 500"
       }
     },

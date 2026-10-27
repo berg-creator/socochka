@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Соцочка</title>
-<link rel="apple-touch-icon" href="icon.png?v=2">
+<link rel="apple-touch-icon" href="icon.png?v=3">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.png?v=2">
+<link rel="icon" href="icon.png?v=3">
 <style>
 :root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e;--red:#e5484d;--yellow:#e8a317;--green:#30a46c}
 @media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#222;--text:#f2f2f2;--muted:#9a9a9a;--line:#3a3a3a;--gold:#f0c040}}
@@ -14,7 +14,8 @@
 body{margin:0;font:16px/1.4 system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);display:flex;justify-content:center;padding:24px 16px}
 main{width:100%;max-width:440px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px}
-h1{margin:0;font-size:32px}
+h1{margin:0;font-size:32px;display:flex;align-items:center;gap:10px}
+.logo{width:40px;height:40px;border-radius:10px}
 h2{font-size:15px;color:var(--muted);font-weight:500;margin:28px 0 10px}
 h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px}
 #me:invalid{border-color:var(--gold);color:var(--gold)}
@@ -44,11 +45,12 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05
 .small{font-size:13px}
 .score{margin-left:auto;color:var(--gold);font-weight:600;white-space:nowrap}
 .rev,.row>details{margin:8px 0 0 58px;font-size:14px}
+.rev{white-space:pre-line}
 .rev .score{margin:0}
 summary{cursor:pointer;color:var(--muted)}
 .fold>summary{padding:4px 0 10px}
 form{display:grid;gap:8px;margin-top:8px}
-select,input,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);min-width:0}
+select,input,textarea,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);min-width:0}
 button{cursor:pointer}
 .add{grid-template-columns:auto minmax(0,1fr) auto;margin:0 0 10px}
 .two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
@@ -78,7 +80,7 @@ button{cursor:pointer}
 </head>
 <body>
 <main>
-<header><h1>🧹 Соцочка</h1><select id="me" required aria-label="Кто я"><option value="">Кто я?</option></select></header>
+<header><h1><img class="logo" src="icon.svg" alt="">Соцочка</h1><select id="me" required aria-label="Кто я"><option value="">Кто я?</option></select></header>
 <div class="tiles" id="tiles"></div>
 <nav class="tabs"><a href="#clean">🧹 Уборка</a><a href="#home">🏠 Дом</a><a href="#events">🎉 События</a></nav>
 
@@ -124,7 +126,7 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, reviews = [], paper = null, requests = [], events = [], note = 'Загрузка…';
+let w = today, shownW, reviews = [], paper = null, requests = [], events = [], note = 'Загрузка…';
 let me = ''; try { me = localStorage.me || ''; } catch {}
 let cal = new Date(), sel = '';
 cal.setDate(1);
@@ -165,19 +167,21 @@ function render() {
   $('boss').textContent = `👑 Староста: ${boss} — принимает объекты`;
 
   // каждую неделю объекты сдвигаются вниз на одного человека
-  $('list').innerHTML = people.map((p, i) => {
+  // пока открыта форма отзыва, живое обновление её не стирает; при закрытии список перерисуется
+  if (w !== shownW || !$('list').querySelector('details[open]')) $('list').innerHTML = people.map((p, i) => {
     const [icon, obj] = objects[mod(i - w)];
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const status = mine.length ? '<span class="score">✅ принято</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
-    const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span></div>`).join('');
+    const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span>${r.by === me ? `<button class="del" data-edit="reviews" data-id="${esc(r.id)}" title="Изменить">✏️</button><button class="del" data-del="reviews" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`).join('');
     const def = me && me !== p ? me : boss;
     const form = note || w > today ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
       <select name="by" aria-label="Кто оценивает">${people.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
-      <input name="text" maxlength="500" placeholder="Комментарий">
+      <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий"></textarea>
       <button>Отправить</button></form></details>`;
     return `<div class="row${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${revs}${form}</div>`;
   }).join('');
+  shownW = w;
 
   $('rating').innerHTML = note || people.map(p => {
     const s = reviews.filter(r => r.who === p).map(r => r.score);
@@ -251,7 +255,7 @@ async function load() {
     const res = await fetch(DB + '/.json');
     if (!res.ok) throw res.status;
     const data = await res.json() || {};
-    reviews = Object.values(data.reviews || {}).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
+    reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id})).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: people.filter(p => e?.votes?.[p])}))
@@ -268,12 +272,16 @@ $('me').value = me;
 $('me').onchange = e => { setMe(e.target.value); render(); };
 $('evForm').elements.date.min = iso(new Date());
 
-$('list').addEventListener('submit', e => {
+$('list').addEventListener('submit', async e => {
   e.preventDefault();
-  const f = e.target, d = new FormData(f);
-  setMe(d.get('by'));
-  send('reviews', 'POST', {week: w, who: f.dataset.who, by: me, score: +d.get('score'), text: d.get('text').trim(), ts: Date.now()}, f.querySelector('button'));
+  const f = e.target, d = new FormData(f), id = f.dataset.edit, b = f.querySelector('button');
+  const r = {score: +d.get('score'), text: d.get('text').trim()};
+  if (!id) setMe(d.get('by'));
+  const ok = id ? await send(`reviews/${encodeURIComponent(id)}`, 'PATCH', r, b)
+    : await send('reviews', 'POST', {week: w, who: f.dataset.who, by: me, ...r, ts: Date.now()}, b);
+  if (ok) f.parentElement.open = false;
 });
+$('list').addEventListener('toggle', e => e.target.open || render(), true);
 
 $('reqForm').onsubmit = async e => {
   e.preventDefault();
@@ -317,6 +325,14 @@ document.addEventListener('click', e => {
   if (x.edit === 'requests') {
     const r = requests.find(r => r.id === x.id), t = prompt('Заявка', r.text)?.trim().slice(0, 200);
     if (t && t !== r.text) send(`requests/${encodeURIComponent(x.id)}`, 'PATCH', {text: t}, b);
+  }
+  if (x.edit === 'reviews') {
+    const r = reviews.find(r => r.id === x.id), f = $('list').querySelector(`form[data-who="${r.who}"]`);
+    if (!f) return;
+    const el = f.elements;
+    f.dataset.edit = r.id; el.by.value = r.by; el.by.disabled = true; el.score.value = r.score; el.text.value = r.text || '';
+    f.querySelector('button').textContent = 'Сохранить';
+    f.parentElement.open = true; el.text.focus();
   }
   if (x.edit === 'events') {
     const ev = events.find(e => e.id === x.id), f = $('evForm'), el = f.elements;
