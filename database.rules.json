@@ -47,12 +47,12 @@
     },
     "trash": {
       ".write": "newData.exists()",
-      ".validate": "newData.child('full').isBoolean() && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"
+      ".validate": "newData.child('full').isBoolean() && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber() && (!newData.child('with').exists() || newData.child('with').isString() && newData.child('with').val().length <= 20)"
     },
     "trashOut": {
       "$id": {
         ".write": "!data.exists() && newData.exists()",
-        ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"
+        ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber() && (!newData.child('with').exists() || newData.child('with').isString() && newData.child('with').val().length <= 20)"
       }
     },
     "buys": {

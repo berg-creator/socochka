@@ -3,7 +3,7 @@ const {TOPIC, SITE, DB} = require('../shared.js');
 (async () => {
   const t = await (await fetch(DB + '/trash.json')).json();
   if (t && !t.full && Date.now() - t.ts < 12 * 36e5) return;
-  const message = t?.full ? `Мусорка переполнена (отметил ${t.by}) — кто вынесет, +балл в рейтинг` : 'Проверь мусорку и вынеси, если пора';
+  const message = t?.full ? `Мусорка переполнена (отметил ${t.by}) — кто вынесет: один +2 балла, вдвоём по +1` : 'Проверь мусорку и вынеси, если пора';
   const r = await fetch('https://ntfy.sh/', {method: 'POST', body: JSON.stringify({topic: TOPIC, title: '🗑 Мусор', message, click: SITE + '#home'})});
   if (!r.ok) throw r.status;
 })();

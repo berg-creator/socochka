@@ -231,11 +231,11 @@ function render() {
   shownW = w;
 
   const rank = people.map(p => {
-    const s = Object.values(marks).map(m => m?.[p]).filter(Number.isInteger), t = trashOut.filter(o => o.by === p).length;
+    const s = Object.values(marks).map(m => m?.[p]).filter(Number.isInteger), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0);
     const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length;
     return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t - l * LATE, s.length, t, l];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + 1 за вынос мусора − LATE за каждую просроченную уборку
-  const extra = (t, l) => (t ? ` · 🗑 ${t} (+${t})` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + trashPts за вынос мусора − LATE за каждую просроченную уборку
+  const extra = (t, l) => (t ? ` · 🗑 +${t}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l], i) =>
     `<div class="row head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
   ).join('');
@@ -252,8 +252,8 @@ function render() {
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
   const full = trash?.full;
-  $('trash').innerHTML = note || `<div class="head"><span class="icon">🗑</span><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : 'вынес'} ${esc(trash.by)}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
-    <div class="two"><button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
+  $('trash').innerHTML = note || `<div class="head"><span class="icon">🗑</span><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : trash.with ? 'вынесли' : 'вынес'} ${esc(trash.by)}${trash.with ? ' и ' + esc(trash.with) : ''}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
+    <div class="two">${full ? `<select id="with" aria-label="С кем вынес" style="grid-column:1/-1"><option value="">Вынес один — +2</option>${members.filter(x => x !== me).map(x => `<option value="${x}">Вдвоём с: ${x} — по +1</option>`).join('')}</select>` : ''}<button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
 
   // личное: свой объект и деньги за бумагу
   const owe = people.includes(me) ? buys.filter(b => b.by !== me && !b.paid[me]) : [];
@@ -427,7 +427,7 @@ document.addEventListener('click', e => {
   }
   if (x.trash === 'full') send('trash', 'PUT', {full: true, by: me, ts: Date.now()}, b).then(ok => ok && notify(`🗑 Мусорка переполнена — кто вынесет? Отметил ${me}`, 'home'));
   // ponytail: «вынес» только после «переполнена» — +1 за бак; кто нажал, на доверии, как и всё без входа
-  if (x.trash === 'out' && trash?.full) { const ts = Date.now(); send('', 'PATCH', {trash: {full: false, by: me, ts}, ['trashOut/' + ts]: {by: me, ts}}, b); }
+  if (x.trash === 'out' && trash?.full) { const ts = Date.now(), o = {by: me, ts, with: $('with').value || undefined}; send('', 'PATCH', {trash: {full: false, ...o}, ['trashOut/' + ts]: o}, b); }
   if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
   if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
   if (x.mark) send(`marks/${w}/${x.who}`, 'PUT', +x.mark, b);
