@@ -194,7 +194,7 @@ function render() {
   $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
-    <div class="ctl"><button data-paper="-1">−1 взял</button><button data-paper="1">+1</button><button data-paper="4">+4 купил</button></div>`;
+    <div class="ctl"><button data-paper="-1">−1 взял</button><input id="buyN" type="number" min="1" max="99" value="8" inputmode="numeric" aria-label="Сколько купил"><button data-paper="buy">купил</button></div>`;
 
   const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me && !r.done ? `<button class="del" data-edit="requests" data-id="${esc(r.id)}" title="Изменить">✏️</button>` : ''}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
@@ -318,7 +318,9 @@ document.addEventListener('click', e => {
   if (!need()) return;
   // ponytail: два одновременных нажатия бумаги — одно потеряется; транзакция через ETag, если начнёт мешать
   if (x.paper) {
-    const n = Math.max(0, paper.rolls + +x.paper), was = paper.rolls;
+    const add = x.paper === 'buy' ? Math.max(0, parseInt($('buyN').value) || 0) : +x.paper;
+    if (!add) return;
+    const n = Math.min(99, Math.max(0, paper.rolls + add)), was = paper.rolls;
     send('paper', 'PUT', {rolls: n, by: me, ts: Date.now()}, b)
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
