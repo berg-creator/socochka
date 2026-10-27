@@ -232,7 +232,7 @@ async function shrink(file) {
 }
 
 function render() {
-  $('me').textContent = me ? me + ' · выйти' : '👀 Гость'; $('login').hidden = !!me; document.body.classList.toggle('guest', !me);
+  $('me').textContent = me ? me + ' · выйти' : '👀 Гость · войти'; if (me) $('login').hidden = true; document.body.classList.toggle('guest', !me);
   const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
   const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.done);
   const lw = lows(paper, buys), v = verdict(marks, requests, trashOut, cleaned, accepted, lw, deeds), vw = v.who.join(' и '), vr = vw ? v.req : null, fine = vr && !vr.done && v.who.includes(me);
@@ -410,7 +410,7 @@ async function idToken() {
 }
 
 function need() {
-  if (!me) { alert('Сначала войди вверху: имя и пароль'); $('login').who.focus(); }
+  if (!me) { alert('Сначала войди вверху: имя и пароль'); $('login').hidden = false; $('login').who.focus(); }
   return !!me;
 }
 
@@ -461,7 +461,12 @@ $('login').onsubmit = async e => {
   if (err) return alert(err);
   f.reset(); render();
 };
-$('me').onclick = () => me ? confirm('Выйти из аккаунта?') && logOut() : $('login').who.focus();
+// гость — по умолчанию: форма входа спрятана, открывается кнопкой вверху
+$('me').onclick = () => {
+  if (me) return confirm('Выйти из аккаунта?') && logOut();
+  $('login').hidden = !$('login').hidden;
+  if (!$('login').hidden) $('login').who.focus();
+};
 $('evForm').elements.date.min = iso(new Date());
 
 $('list').addEventListener('submit', async e => {
