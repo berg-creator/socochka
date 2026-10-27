@@ -7,6 +7,14 @@
         ".validate": "newData.child('week').isNumber() && newData.child('who').isString() && newData.child('who').val() !== newData.child('by').val() && newData.child('by').isString() && newData.child('score').isNumber() && newData.child('score').val() >= 1 && newData.child('score').val() <= 5 && newData.child('text').isString() && newData.child('text').val().length <= 500"
       }
     },
+    "cleaned": {
+      "$week": {
+        "$name": {
+          ".write": true,
+          ".validate": "newData.isNumber() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
+        }
+      }
+    },
     "paper": {
       ".write": "newData.exists()",
       ".validate": "newData.child('rolls').isNumber() && newData.child('rolls').val() % 1 === 0 && newData.child('rolls').val() >= 0 && newData.child('rolls').val() <= 99 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"

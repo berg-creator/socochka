@@ -126,7 +126,7 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, shownW, reviews = [], paper = null, requests = [], events = [], note = 'Загрузка…';
+let w = today, shownW, reviews = [], cleaned = {}, paper = null, requests = [], events = [], note = 'Загрузка…';
 let me = ''; try { me = localStorage.me || ''; } catch {}
 let cal = new Date(), sel = '';
 cal.setDate(1);
@@ -171,10 +171,12 @@ function render() {
   if (w !== shownW || !$('list').querySelector('details[open]')) $('list').innerHTML = people.map((p, i) => {
     const [icon, obj] = objects[mod(i - w)];
     const mine = reviews.filter(r => r.week === w && r.who === p);
-    const status = mine.length ? '<span class="score">✅ принято</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
+    const done = cleaned[w]?.[p];
+    const status = mine.length ? '<span class="score">✅ принято</span>' : done ? '<span class="score">🧹 убрано</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
     const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span>${r.by === me ? `<button class="del" data-edit="reviews" data-id="${esc(r.id)}" title="Изменить">✏️</button><button class="del" data-del="reviews" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`).join('');
     const def = me && me !== p ? me : boss;
-    const form = note || w > today || p === me ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
+    // своё не оценивают — вместо отзыва отмечают, что убрали, и староста получает уведомление
+    const form = note || w > today ? '' : p === me ? (w === today && !done && !mine.length ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : '') : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
       <select name="by" aria-label="Кто оценивает">${members.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий"></textarea>
@@ -257,6 +259,7 @@ async function load() {
     if (!res.ok) throw res.status;
     const data = await res.json() || {};
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id})).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
+    cleaned = data.cleaned || {};
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
@@ -309,7 +312,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit]');
+  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned]');
   if (!b) return;
   const x = b.dataset;
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
@@ -324,6 +327,7 @@ document.addEventListener('click', e => {
     send('paper', 'PUT', {rolls: n, by: me, ts: Date.now()}, b)
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
+  if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
   if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);
   if (x.edit === 'requests') {
     const r = requests.find(r => r.id === x.id), t = prompt('Заявка', r.text)?.trim().slice(0, 200);
