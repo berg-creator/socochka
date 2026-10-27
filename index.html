@@ -108,11 +108,14 @@ button{cursor:pointer}
 .day.ok::after{background:var(--green)}
 .dayinfo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:4px}
 .link{border:0;background:none;padding:4px 0;color:var(--gold);text-align:left}
+/* гость (не вошёл) — только смотрит: формы и кнопки действий скрыты, лайки видны, но не жмутся */
+.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed]){display:none}
+.guest [data-like]{pointer-events:none}
 </style>
 </head>
 <body>
 <main>
-<header><h1><img class="logo" src="icon.svg" alt="">Соцочка</h1><button id="me" class="link" hidden title="Выйти"></button></header>
+<header><h1><img class="logo" src="icon.svg" alt="">Соцочка</h1><button id="me" class="link"></button></header>
 <form id="login" hidden><div class="two"><select name="who" required aria-label="Кто я"><option value="">Кто я?</option></select><input name="pw" type="password" required placeholder="Пароль" autocomplete="current-password"></div><button>Войти</button><span class="muted small">Первый раз — придумай пароль от 6 символов: дальше вход по нему, устройство запомнит.</span></form>
 <div class="tiles" id="tiles"></div>
 <nav class="tabs"><a href="#clean"><b>🧹</b>Уборка</a><a href="#home"><b>🏠</b>Дом</a><a href="#events"><b>🎉</b>События</a><a href="#my"><b>👤</b>Я</a></nav>
@@ -229,7 +232,7 @@ async function shrink(file) {
 }
 
 function render() {
-  $('me').hidden = !me; $('me').textContent = me + ' · выйти'; $('login').hidden = !!me;
+  $('me').textContent = me ? me + ' · выйти' : '👀 Гость'; $('login').hidden = !!me; document.body.classList.toggle('guest', !me);
   const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
   const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.done);
   const lw = lows(paper, buys), v = verdict(marks, requests, trashOut, cleaned, accepted, lw, deeds), vw = v.who.join(' и '), vr = vw ? v.req : null, fine = vr && !vr.done && v.who.includes(me);
@@ -457,7 +460,7 @@ $('login').onsubmit = async e => {
   if (err) return alert(err);
   f.reset(); render();
 };
-$('me').onclick = () => confirm('Выйти из аккаунта?') && logOut();
+$('me').onclick = () => me ? confirm('Выйти из аккаунта?') && logOut() : $('login').who.focus();
 $('evForm').elements.date.min = iso(new Date());
 
 $('list').addEventListener('submit', async e => {
