@@ -174,7 +174,7 @@ function render() {
     const status = mine.length ? '<span class="score">✅ принято</span>' : w < today && !note ? '<span class="score muted">не принято</span>' : '';
     const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span>${r.by === me ? `<button class="del" data-edit="reviews" data-id="${esc(r.id)}" title="Изменить">✏️</button><button class="del" data-del="reviews" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`).join('');
     const def = me && me !== p ? me : boss;
-    const form = note || w > today ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
+    const form = note || w > today || p === me ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
       <select name="by" aria-label="Кто оценивает">${members.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий"></textarea>
