@@ -266,10 +266,10 @@ function render() {
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const done = cleaned[w]?.[p];
     const acc = accepted[w]?.[p];
-    const [sc, st] = note || w > today ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
+    const [sc, st] = note || Date.now() < monday(w) ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
     const revs = mine.map(comment).join('');
     // своё отмечают «убрал», принимает только староста; комментарии на статус и рейтинг не влияют
-    const act = acc ? '' : p === me && w <= today && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
+    const act = acc || Date.now() < monday(w) ? '' : p === me && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
     // звёзды ставит староста; его собственный объект оценивают все участники, кроме него, балл — среднее. Менять — до итогов в среду
     const m = marks[w]?.[p] || {}, mark = avg(m), k = Object.keys(m), judge = p === boss ? me !== p && members.includes(me) : me === boss;
     // у старосты — средняя и кто сколько поставил (по плашке на оценщика), у остальных — звёзды и кто ставил
@@ -327,8 +327,8 @@ function render() {
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.some(b => !b.claim[me]) || fine);
   const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
   const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg] = rank[ri] || [], has = rn || rt || rl || rb || rg, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
-  const [sc, st] = state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
-  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div><span class="end badge ${sc}">${st}</span></a>`
+  const [sc, st] = Date.now() < monday(today) ? ['', ''] : state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
+  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div>${st && `<span class="end badge ${sc}">${st}</span>`}</a>`
       + (fine ? `<h2>Штраф недели</h2><a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(vr.text)}</div><div class="muted small">худший рейтинг за неделю — эта заявка на тебе</div></div></a>` : '')
       + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl, rb, rg)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
       + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`

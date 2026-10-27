@@ -31,6 +31,8 @@ function trashCap(list) {
 // оценка недели: среднее звёзд marks[n][кто][от кого]. Объект старосты оценивают все участники, остальные — один староста
 const avg = m => { const v = Object.values(m || {}).filter(Number.isInteger); return v.length ? v.reduce((a, b) => a + b) / v.length : undefined; };
 const due = n => START + (n + 1) * WEEK;
+// уборка недели n — с понедельника 00:00 МСК (5 суток от её начала); до него у объектов ни цвета, ни статуса
+const monday = n => START + n * WEEK + 5 * 864e5;
 const late = (cleaned, accepted, p, n) => !(cleaned[n]?.[p] < due(n) || accepted[n]?.[p] < due(n));
 // доброе дело засчитано вторым голосом «за» (голос — время нажатия): с этого момента автору +DEED
 const DEED = 1;
@@ -55,4 +57,4 @@ function verdict(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = 
   return {n, min, who: score.filter(x => x[1] === min).map(x => x[0]),
     req: requests.filter(r => r.ts < at && !(r.done?.ts < at)).sort((a, b) => a.ts - b.ts)[0]};
 }
-if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, late, deedAt, lows, nobuy, verdict};
+if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, lows, nobuy, verdict};
