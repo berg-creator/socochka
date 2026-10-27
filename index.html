@@ -67,6 +67,7 @@ a.row{color:inherit;text-decoration:none}
 .del.on{opacity:1}
 .star{color:var(--gold);font-size:22px;padding:2px 3px;opacity:1}
 summary{cursor:pointer;color:var(--muted)}
+.hist>summary{color:inherit}.hist>summary::-webkit-details-marker{display:none}
 .fold>summary{padding:4px 0 10px}
 form{display:grid;gap:8px;margin-top:8px}
 select,input,textarea,button{font:inherit;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);min-width:0}
@@ -236,8 +237,16 @@ function render() {
     return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t - l * LATE, s.length, t, l];
   }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + trashPts за вынос мусора − LATE за каждую просроченную уборку
   const extra = (t, l) => (t ? ` · 🗑 +${t}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
+  // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
+  const hist = p => [
+    ...Object.entries(marks).filter(([, m]) => Number.isInteger(m?.[p])).map(([n, m]) => [START + n * WEEK, '⭐', `Оценка старосты ${bosses[mod(n)]}, неделя с ${fmt(START + n * WEEK)}`, m[p] + ' ★']),
+    ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
+    ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${fmt(START + n * WEEK)}`, '−' + LATE])
+  ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
+    + '<div class="rev muted small">Балл = средняя оценка старосты + мусор − просрочки</div>';
+  const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l], i) =>
-    `<div class="row head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
@@ -261,10 +270,11 @@ function render() {
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.length > 0 || fine);
   const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
   const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl] = rank[ri] || [], about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
-  const [sc, st] = state(accepted[today]?.[me], cleaned[today]?.[me]);
+  const [sc, st] = state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
   $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div><span class="end badge ${sc}">${st}</span></a>`
       + (fine ? `<h2>Штраф недели</h2><a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(vr.text)}</div><div class="muted small">худший рейтинг за неделю — эта заявка на тебе</div></div></a>` : '')
       + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${rn || rl ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${rn || rl ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${rn || rl ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
+      + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`
       + (about.length ? `<details class="fold"><summary>Комментарии обо мне (${about.length})</summary>${about.map(r => `<div class="row"><span class="muted small">неделя с ${fmt(START + r.week * WEEK)}</span>${comment(r)}</div>`).join('')}</details>` : ''))
     + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div><button class="end" data-paid="${esc(b.id)}" data-name="${me}">Отдал</button></div>`).join('') || '<p class="muted">Ничего 👌</p>')
     + (mineBuys.length ? '<h2>Тебе должны</h2>' + mineBuys.map(b => `<div class="row"><div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽</div><div class="muted small">${short(new Date(b.ts))}, по ${share(b)} ₽</div></div><button class="del" data-del="buys" data-id="${esc(b.id)}" title="Удалить покупку">🗑</button></div>`
