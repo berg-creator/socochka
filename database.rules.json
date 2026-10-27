@@ -28,7 +28,7 @@
         "votes": {
           "$name": {
             ".write": true,
-            ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
+            ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
           }
         }
       }

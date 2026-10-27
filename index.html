@@ -175,7 +175,7 @@ function render() {
     const revs = mine.map(r => `<div class="rev"><span class="score">${stars(r.score)}</span> ${esc(r.text || '')} <span class="muted">— ${esc(r.by)}</span>${r.by === me ? `<button class="del" data-edit="reviews" data-id="${esc(r.id)}" title="Изменить">✏️</button><button class="del" data-del="reviews" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`).join('');
     const def = me && me !== p ? me : boss;
     const form = note || w > today ? '' : `<details><summary>${mine.length ? 'Добавить отзыв' : 'Принять объект'}</summary><form data-who="${p}">
-      <select name="by" aria-label="Кто оценивает">${people.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
+      <select name="by" aria-label="Кто оценивает">${members.filter(x => x !== p).map(x => `<option${x === def ? ' selected' : ''}>${x}</option>`).join('')}</select>
       <select name="score" aria-label="Оценка">${[5, 4, 3, 2, 1].map(n => `<option value="${n}">${stars(n)}</option>`).join('')}</select>
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий"></textarea>
       <button>Отправить</button></form></details>`;
@@ -258,7 +258,7 @@ async function load() {
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id})).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
-    events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: people.filter(p => e?.votes?.[p])}))
+    events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
       .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
     note = '';
   } catch { note = 'Не загрузилось — обнови страницу'; }
@@ -267,7 +267,7 @@ async function load() {
 
 $('prev').onclick = () => { w--; render(); };
 $('next').onclick = () => { w++; render(); };
-$('me').innerHTML += people.map(p => `<option>${p}</option>`).join('');
+$('me').innerHTML += members.map(p => `<option>${p}</option>`).join('');
 $('me').value = me;
 $('me').onchange = e => { setMe(e.target.value); render(); };
 $('evForm').elements.date.min = iso(new Date());
