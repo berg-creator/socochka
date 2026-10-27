@@ -301,14 +301,14 @@ function render() {
 
   // бумага: 8 рулонов — полная полоска
   const dl = paper?.low && Math.max(paper.low, START + today * WEEK) + DAY; // до когда старосте купить без штрафа
-  $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
+  $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу${dl ? Date.now() < dl ? `: ⏳ <b data-left="${dl}">${left(dl)}</b> (до ${stamp(dl)}), иначе −${NOBUY} балл` : ` — просрочено, −${NOBUY} балл` : ''}` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button>${me === nowBoss ? '<button data-buy="8">+8 купил</button><button data-buy="">другое…</button>' : ''}</div>`;
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
   const full = trash?.full;
-  $('trash').innerHTML = note || `<div class="head"><span class="icon">🗑</span><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : trash.with ? 'вынесли' : 'вынес'} ${esc(trash.by)}${trash.with ? ' и ' + esc(trash.with) : ''}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
+  $('trash').innerHTML = note || `<div class="head"><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : trash.with ? 'вынесли' : 'вынес'} ${esc(trash.by)}${trash.with ? ' и ' + esc(trash.with) : ''}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
     <div class="two">${full ? `<select id="with" aria-label="С кем вынес" style="grid-column:1/-1"><option value="">Вынес один — +2</option>${members.filter(x => x !== me).map(x => `<option value="${x}">Вдвоём с: ${x} — по +1</option>`).join('')}</select>` : ''}<button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
 
   // личное: свой объект и деньги за бумагу
