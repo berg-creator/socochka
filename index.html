@@ -23,9 +23,19 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05
 .tile{background:var(--card);border-radius:14px;padding:10px 12px;color:inherit;text-decoration:none;border-left:4px solid var(--c,var(--card))}
 .tile span{font-size:13px;color:var(--muted)}
 .tile b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.tabs{display:flex;gap:4px;padding:4px;background:var(--card);border-radius:14px}
-.tabs a{flex:1;text-align:center;padding:10px 4px;border-radius:10px;color:var(--muted);text-decoration:none;font-weight:600}
-.tabs a.on{background:var(--bg);color:var(--text)}
+[hidden]{display:none!important}
+/* вкладки — табуретка: сиденье сверху, четыре раздела — четыре ножки, ножка раздела, где ты сейчас, золотая */
+.tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:0 4px 6px;background:var(--card);border-radius:14px;border-top:6px solid var(--gold)}
+.tabs a{text-align:center;padding:0 2px 4px;border-radius:0 0 10px 10px;color:var(--muted);text-decoration:none;font-weight:600;font-size:13px}
+.tabs a::before{content:'';display:block;width:4px;height:10px;margin:0 auto 4px;border-radius:0 0 2px 2px;background:var(--line);transform:rotate(var(--tilt));transform-origin:top;transition:height .2s,background .2s}
+.tabs a:nth-child(1){--tilt:14deg}.tabs a:nth-child(2){--tilt:5deg}.tabs a:nth-child(3){--tilt:-5deg}.tabs a:nth-child(4){--tilt:-14deg}
+.tabs a.on{color:var(--text)}
+.tabs a.on::before{background:var(--gold);height:16px}
+.tabs a.owe::before{background:var(--red)}
+.tabs b{display:block;font-size:22px;line-height:1.2}
+section:not([hidden]){animation:slide .25s ease-out}
+@keyframes slide{from{opacity:0;transform:translateX(var(--dx,0))}}
+@media (prefers-reduced-motion:reduce){section{animation:none!important}}
 .red{--c:var(--red)}.yellow{--c:var(--yellow)}.green{--c:var(--green)}
 .nav{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px}
 .nav button{font-size:20px;width:44px;height:44px;border:0;border-radius:12px;background:var(--card);color:var(--text);cursor:pointer}
@@ -33,6 +43,7 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05
 .week b{display:block;color:var(--text)}
 .boss{text-align:center;margin:0 0 16px}
 .row{background:var(--card);border-radius:16px;padding:14px 16px;margin-bottom:10px}
+a.row{color:inherit;text-decoration:none}
 .mine{box-shadow:inset 0 0 0 2px var(--gold)}
 .done{opacity:.55}
 .head{display:flex;align-items:center;gap:14px}
@@ -82,7 +93,7 @@ button{cursor:pointer}
 <main>
 <header><h1><img class="logo" src="icon.svg" alt="">Соцочка</h1><select id="me" required aria-label="Кто я"><option value="">Кто я?</option></select></header>
 <div class="tiles" id="tiles"></div>
-<nav class="tabs"><a href="#clean">🧹 Уборка</a><a href="#home">🏠 Дом</a><a href="#events">🎉 События</a></nav>
+<nav class="tabs"><a href="#clean"><b>🧹</b>Уборка</a><a href="#home"><b>🏠</b>Дом</a><a href="#events"><b>🎉</b>События</a><a href="#my"><b>👤</b>Я</a></nav>
 
 <section data-tab="clean">
 <div class="nav"><button id="prev" aria-label="Неделя назад">←</button><div class="week" id="week"></div><button id="next" aria-label="Неделя вперёд">→</button></div>
@@ -95,6 +106,12 @@ button{cursor:pointer}
 <section data-tab="home" hidden>
 <h2>Туалетная бумага</h2>
 <div class="row" id="paper"></div>
+<form id="buyForm" class="row" hidden>
+  <input name="n" type="number" min="1" max="99" inputmode="numeric" placeholder="Сколько рулонов" aria-label="Сколько рулонов" required>
+  <input name="price" type="number" min="1" max="100000" inputmode="numeric" placeholder="Сколько стоило, ₽" aria-label="Сколько стоило" required>
+  <p class="muted small" id="buyShare">Скидываются все четверо поровну</p>
+  <div class="two"><button type="button" id="buyCancel">Отмена</button><button>Готово</button></div>
+</form>
 <h2>Заявки: ремонт и покупки</h2>
 <form id="reqForm" class="row add">
   <select name="kind" aria-label="Тип заявки"><option value="fix">🔧 Ремонт</option><option value="buy">🛒 Купить</option></select>
@@ -116,6 +133,10 @@ button{cursor:pointer}
 <h2>Календарь</h2>
 <div class="row" id="cal"></div>
 </section>
+
+<section data-tab="my" hidden>
+<div id="my"></div>
+</section>
 </main>
 <script src="shared.js"></script>
 <script>
@@ -126,7 +147,7 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, shownW, reviews = [], cleaned = {}, paper = null, requests = [], events = [], note = 'Загрузка…';
+let w = today, shownW, tab, reviews = [], cleaned = {}, paper = null, buys = [], requests = [], events = [], note = 'Загрузка…';
 let me = ''; try { me = localStorage.me || ''; } catch {}
 let cal = new Date(), sel = '';
 cal.setDate(1);
@@ -143,6 +164,7 @@ const stamp = ts => new Date(ts).toLocaleString('ru-RU', {day: 'numeric', month:
 const plural = (n, f) => f[['one', 'few', 'many'].indexOf(new Intl.PluralRules('ru').select(n))] ?? f[2];
 const lvl = n => n <= 2 ? ['red', 'мало'] : n <= 5 ? ['yellow', 'средне'] : ['green', 'достаточно'];
 const ok = e => e.votes.length >= 3;
+const share = b => Math.ceil(b.price / people.length); // бумагу оплачивают четверо поровну
 const byWhen = (a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || ''));
 const when = e => short(day(e.date)) + (e.time ? ' в ' + e.time : '');
 // уведомление всем в ntfy; не дошло — не страшно, запись уже в базе
@@ -196,7 +218,18 @@ function render() {
   $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
-    <div class="ctl"><button data-paper="-1">−1 взял</button><input id="buyN" type="number" min="1" max="99" value="8" inputmode="numeric" aria-label="Сколько купил"><button data-paper="buy">купил</button></div>`;
+    <div class="ctl"><button data-paper="-1">−1 взял</button><button data-buy="8">+8 купил</button><button data-buy="">другое…</button></div>`;
+
+  // личное: свой объект и деньги за бумагу
+  const owe = people.includes(me) ? buys.filter(b => b.by !== me && !b.paid[me]) : [];
+  const mineBuys = buys.filter(b => b.by === me && people.some(p => p !== me && !b.paid[p]));
+  document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.length > 0);
+  const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
+  const st = i < 0 ? '' : reviews.some(r => r.week === today && r.who === me) ? '✅ принято' : cleaned[today]?.[me] ? '🧹 убрано, ждёт старосту' : 'надо убрать';
+  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div><div class="muted small">${st}</div></div></a>`)
+    + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div><button class="end" data-paid="${esc(b.id)}" data-name="${me}">Отдал</button></div>`).join('') || '<p class="muted">Ничего 👌</p>')
+    + (mineBuys.length ? '<h2>Тебе должны</h2>' + mineBuys.map(b => `<div class="row"><div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽</div><div class="muted small">${short(new Date(b.ts))}, по ${share(b)} ₽</div></div><button class="del" data-del="buys" data-id="${esc(b.id)}" title="Удалить покупку">🗑</button></div>`
+      + people.filter(p => p !== me).map(p => `<div class="rev">${b.paid[p] ? `✓ ${p} отдал` : `${p} — ${share(b)} ₽ <button data-paid="${esc(b.id)}" data-name="${p}">получил</button>`}</div>`).join('') + '</div>').join('') : '');
 
   const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me && !r.done ? `<button class="del" data-edit="requests" data-id="${esc(r.id)}" title="Изменить">✏️</button>` : ''}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
@@ -230,9 +263,12 @@ function renderCal() {
     + (sel ? `<div class="dayinfo"><b>${day(sel).toLocaleDateString('ru-RU', {weekday: 'long', day: 'numeric', month: 'long'})}</b>${list.map(e => `<div>${ok(e) ? '✅' : '•'} ${e.time ? esc(e.time) + ' ' : ''}${esc(e.title)} <span class="muted">👍 ${e.votes.length}</span></div>`).join('') || '<div class="muted">ничего нет</div>'}${sel >= tIso ? '<button class="link" data-propose="1">＋ предложить на этот день</button>' : ''}</div>` : '');
 }
 
-const TABS = ['clean', 'home', 'events'];
+const TABS = ['clean', 'home', 'events', 'my'];
 function showTab() {
   const t = TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'clean';
+  // новый раздел въезжает с той стороны, куда листаешь
+  document.body.style.setProperty('--dx', (TABS.indexOf(t) < TABS.indexOf(tab) ? -24 : 24) + 'px');
+  tab = t;
   document.querySelectorAll('section').forEach(s => s.hidden = s.dataset.tab !== t);
   document.querySelectorAll('.tabs a').forEach(a => a.classList.toggle('on', a.hash === '#' + t));
 }
@@ -261,6 +297,7 @@ async function load() {
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id})).filter(r => r && people.includes(r.who) && Number.isInteger(r.week) && Number.isInteger(r.score) && r.score >= 1 && r.score <= 5);
     cleaned = data.cleaned || {};
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
+    buys = Object.entries(data.buys || {}).map(([id, b]) => ({...b, id, paid: b.paid || {}})).filter(b => Number.isInteger(b.n) && Number.isFinite(b.price) && typeof b.by === 'string');
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
       .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
@@ -295,6 +332,17 @@ $('reqForm').onsubmit = async e => {
   if (await send('requests', 'POST', r, f.querySelector('button'))) { f.reset(); notify(`${kinds[r.kind]} ${me}: ${r.text}`, 'home'); }
 };
 
+// покупка бумаги: остаток и долг каждому из четверых пишутся одним запросом
+$('buyForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!need()) return;
+  const f = e.target, n = +f.elements.n.value, price = +f.elements.price.value, ts = Date.now(), b = {n, price, by: me, ts};
+  const ok = await send('', 'PATCH', {paper: {rolls: Math.min(99, (paper?.rolls ?? 0) + n), by: me, ts}, ['buys/' + ts]: b}, f.querySelector('button:not([type])'));
+  if (ok) { f.reset(); f.hidden = true; notify(`🧻 ${me} купил ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} за ${price} ₽. Скидываемся по ${share(b)} ₽ → ${me}: ${people.filter(p => p !== me).join(', ')}`, 'my'); }
+};
+$('buyForm').oninput = e => { const p = +e.currentTarget.elements.price.value; $('buyShare').textContent = p ? `С каждого из четверых по ${share({price: p})} ₽` : 'Скидываются все четверо поровну'; };
+$('buyCancel').onclick = () => { $('buyForm').reset(); $('buyForm').hidden = true; };
+
 $('evForm').onsubmit = async e => {
   e.preventDefault();
   if (!need()) return;
@@ -312,7 +360,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned]');
+  const b = e.target.closest('button[data-paper],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned]');
   if (!b) return;
   const x = b.dataset;
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
@@ -320,10 +368,14 @@ document.addEventListener('click', e => {
   if (x.propose) { const f = $('evForm').elements; f.date.value = sel; $('evFold').open = true; return f.title.focus(); }
   if (!need()) return;
   // ponytail: два одновременных нажатия бумаги — одно потеряется; транзакция через ETag, если начнёт мешать
+  if (x.buy !== undefined) {
+    const f = $('buyForm'), el = f.elements;
+    f.reset(); el.n.value = x.buy; el.n.hidden = !x.buy; f.hidden = false; f.dispatchEvent(new Event('input'));
+    return (x.buy ? el.price : el.n).focus();
+  }
+  if (x.paid) send(`buys/${encodeURIComponent(x.paid)}/paid/${x.name}`, 'PUT', Date.now(), b);
   if (x.paper) {
-    const add = x.paper === 'buy' ? Math.max(0, parseInt($('buyN').value) || 0) : +x.paper;
-    if (!add) return;
-    const n = Math.min(99, Math.max(0, paper.rolls + add)), was = paper.rolls;
+    const n = Math.max(0, paper.rolls + +x.paper), was = paper.rolls;
     send('paper', 'PUT', {rolls: n, by: me, ts: Date.now()}, b)
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
