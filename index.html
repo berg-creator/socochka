@@ -338,8 +338,8 @@ function render() {
     const d = day(e.date), on = e.votes.includes(me), g = ['Эта неделя', 'Следующая неделя'][weekNow(d) - today] || 'Позже';
     const h = g === last ? '' : `<h3>${g}</h3>`;
     last = g;
-    return h + `<div class="row head"><div class="date"><b>${d.getDate()}</b>${d.toLocaleDateString('ru-RU', {month: 'short'})}<br>${d.toLocaleDateString('ru-RU', {weekday: 'short'})}</div>
-      <div class="grow"><div class="name">${esc(e.title)}${ok(e) ? ' ✅' : ''}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
+    return h + `<div class="row head"><div class="date">${ok(e) ? '✅<br>' : ''}<b>${d.getDate()}</b>${d.toLocaleDateString('ru-RU', {month: 'short'})}<br>${d.toLocaleDateString('ru-RU', {weekday: 'short'})}</div>
+      <div class="grow"><div class="name">${esc(e.title)}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
       <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-edit="events" data-id="${esc(e.id)}" title="Изменить">✏️</button><button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
 
