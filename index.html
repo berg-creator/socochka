@@ -7,6 +7,11 @@
 <link rel="apple-touch-icon" href="icon.png?v=3">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.png?v=3">
+<script>
+// страховка: упал скрипт (сломанная выкладка) — при возврате в приложение перезагрузиться и подтянуть исправление.
+// Иначе приложение с иконки на iPhone так и «размораживает» сломанную страницу
+addEventListener('error', () => addEventListener('visibilitychange', () => document.hidden || location.reload()), {once: true});
+</script>
 <style>
 :root{--bg:#f6f4ef;--card:#fff;--text:#1d1d1f;--muted:#6e6e73;--line:#e2ded6;--gold:#c8940e;--red:#e5484d;--orange:#f76b15;--yellow:#e8a317;--green:#30a46c}
 @media (prefers-color-scheme:dark){:root{--bg:#141414;--card:#222;--text:#f2f2f2;--muted:#9a9a9a;--line:#3a3a3a;--gold:#f0c040}}
