@@ -1,0 +1,11 @@
+name: Напоминание про мусор
+on:
+  schedule:
+    - cron: '0 16 * * *' # каждый день, 19:00 МСК
+  workflow_dispatch:
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: node .github/trash.js

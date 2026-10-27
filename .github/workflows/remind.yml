@@ -2,6 +2,7 @@ name: Напоминание об уборке
 on:
   schedule:
     - cron: '0 6 * * 1' # понедельник, 09:00 МСК
+    - cron: '0 6 * * 3' # среда, 09:00 МСК — итоги недели
   workflow_dispatch:
 jobs:
   remind:
