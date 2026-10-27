@@ -22,8 +22,10 @@
     "marks": {
       "$week": {
         "$name": {
-          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== null && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== $name",
-          ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 5 && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
+          "$by": {
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $by && $by !== $name",
+            ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 5 && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
+          }
         }
       }
     },

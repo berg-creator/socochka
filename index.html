@@ -263,10 +263,11 @@ function render() {
     const revs = mine.map(comment).join('');
     // своё отмечают «убрал», принимает только староста; комментарии на статус и рейтинг не влияют
     const act = acc ? '' : p === me && w <= today && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
-    // звёзды ставит только староста; себе он не судья — его объект оценивает староста прошлой недели. Менять — до итогов в среду
-    const mark = marks[w]?.[p], judge = p === boss ? bosses[mod(w - 1)] : boss;
-    const rate = note || w > today ? '' : me === judge && Date.now() < due(w) ? `<div class="rev">${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= mark ? '★' : '☆'}</button>`).join('')}</div>`
-      : mark ? `<div class="rev"><span class="score">${stars(mark)}</span> <span class="muted">— ${judge}</span></div>` : '';
+    // звёзды ставит староста; его собственный объект оценивают все участники, кроме него, балл — среднее. Менять — до итогов в среду
+    const m = marks[w]?.[p] || {}, mark = avg(m), k = Object.keys(m), judge = p === boss ? me !== p && members.includes(me) : me === boss;
+    const got = mark ? `<span class="score">${stars(Math.round(mark))}</span> <span class="muted">${k.length > 1 ? mark.toFixed(1) + ' ' : ''}— ${esc(k.join(', '))}</span>` : '';
+    const rate = note || w > today ? '' : judge && Date.now() < due(w) ? `<div class="rev">${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= m[me] ? '★' : '☆'}</button>`).join('')}${p === boss && got ? ' ' + got : ''}</div>`
+      : got && `<div class="rev">${got}</div>`;
     const form = note || w > today ? '' : act + (p === me ? '' : `<details><summary>Комментировать</summary><form data-who="${p}">
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий" required></textarea>
       <button>Отправить</button></form></details>`);
@@ -276,20 +277,20 @@ function render() {
 
   const nb = p => Array.from({length: today + 1}, (_, n) => n).filter(n => bosses[mod(n)] === p && nobuy(lw, n)); // недели, где староста p не купил бумагу
   const rank = people.map(p => {
-    const s = Object.values(marks).map(m => m?.[p]).filter(Number.isInteger), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
+    const s = Object.values(marks).map(m => avg(m?.[p])).filter(x => x !== undefined), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
     const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length, b = nb(p).length;
     return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g - l * LATE - b * NOBUY, s.length, t, l, b, g];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + trashPts за вынос мусора + DEED за доброе дело − LATE за каждую просроченную уборку − NOBUY за бумагу
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело − LATE за каждую просроченную уборку − NOBUY за бумагу
   const extra = (t, l, b, g) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
-    ...Object.entries(marks).filter(([, m]) => Number.isInteger(m?.[p])).map(([n, m]) => [START + n * WEEK, '⭐', `Оценка старосты ${bosses[mod(n)]}, неделя с ${fmt(START + n * WEEK)}`, m[p] + ' ★']),
+    ...Object.entries(marks).filter(([, m]) => avg(m?.[p])).map(([n, m]) => { const k = Object.keys(m[p]); return [START + n * WEEK, '⭐', `Оценка ${k.length > 1 ? 'участников' : 'старосты'} ${esc(k.join(', '))}, неделя с ${fmt(START + n * WEEK)}`, +avg(m[p]).toFixed(1) + ' ★']; }),
     ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
     ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${fmt(START + n * WEEK)}`, '−' + LATE]),
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${fmt(START + n * WEEK)}`, '−' + NOBUY]),
     ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, засчитали ${esc(Object.keys(d.votes).join(', '))}`, '+' + DEED])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
-    + '<div class="rev muted small">Балл = средняя оценка старосты + мусор + добрые дела − просрочки</div>';
+    + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела − просрочки</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g], i) =>
     `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l, b, g)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
@@ -556,7 +557,7 @@ document.addEventListener('click', e => {
     send('', 'PATCH', {trash: {full: false, ...o}, ['trashOut/' + ts]: o}, b); }
   if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
   if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
-  if (x.mark) send(`marks/${w}/${x.who}`, 'PUT', +x.mark, b);
+  if (x.mark) send(`marks/${w}/${x.who}/${me}`, 'PUT', +x.mark, b);
   if (x.like) { const on = b.classList.contains('on'); send(`reviews/${encodeURIComponent(x.like)}/likes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : true, b); }
   if (x.reply) { const t = prompt('Ответ')?.trim().slice(0, 500); if (t) send(`reviews/${encodeURIComponent(x.reply)}/replies`, 'POST', {by: me, text: t, ts: Date.now()}, b); }
   if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);

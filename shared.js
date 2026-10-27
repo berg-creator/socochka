@@ -27,6 +27,8 @@ function trashCap(list) {
     return true;
   });
 }
+// оценка недели: среднее звёзд marks[n][кто][от кого]. Объект старосты оценивают все участники, остальные — один староста
+const avg = m => { const v = Object.values(m || {}).filter(Number.isInteger); return v.length ? v.reduce((a, b) => a + b) / v.length : undefined; };
 const due = n => START + n * WEEK + 9 * 864e5;
 const late = (cleaned, accepted, p, n) => !(cleaned[n]?.[p] < due(n) || accepted[n]?.[p] < due(n));
 // доброе дело засчитано вторым голосом «за» (голос — время нажатия): с этого момента автору +DEED
@@ -37,13 +39,13 @@ const deedAt = d => Object.values(d.votes || {}).sort((a, b) => a - b)[1];
 const NOBUY = 1, DAY = 864e5;
 const lows = (paper, buys) => [...buys.filter(b => b.low).map(b => [b.low, b.ts]), ...(paper?.low ? [[paper.low, Infinity]] : [])];
 const nobuy = (lows, n, now = Date.now()) => lows.some(([a, b]) => Math.min(b, now, START + (n + 1) * WEEK) - Math.max(a, START + n * WEEK) > DAY);
-// итоги недели n — в среду следующей: худший балл за неделю (оценка старосты marks[n][кто] + trashPts за вынос мусора + DEED за доброе дело − LATE за просрочку − NOBUY старосте за бумагу)
+// итоги недели n — в среду следующей: худший балл за неделю (средняя оценка avg(marks[n][кто]) + trashPts за вынос мусора + DEED за доброе дело − LATE за просрочку − NOBUY старосте за бумагу)
 // выполняет самую старую заявку, открытую на тот момент. Без оценки и просрочки — не участвует, ничья — делают вместе.
 // Комментарии на балл не влияют; оценку после среды страница менять не даёт, чтобы итог не менялся задним числом
 function verdict(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = [], now = Date.now()) {
   const n = Math.floor((now - due(0)) / WEEK), at = due(n);
   const score = n < 0 ? [] : people.flatMap(p => { // n < 0 — до первой среды недели ещё нет
-    const s = marks[n]?.[p], b = bosses[n % 4] === p && nobuy(lw, n, now);
+    const s = avg(marks[n]?.[p]), b = bosses[n % 4] === p && nobuy(lw, n, now);
     const t = trashCap(trashOut).filter(o => Math.floor((o.ts - START) / WEEK) === n).reduce((a, o) => a + trashPts(o, p), 0), l = late(cleaned, accepted, p, n);
     const g = deeds.filter(d => d.by === p && Math.floor((deedAt(d) - START) / WEEK) === n).length * DEED;
     return s || l || b ? [[p, Math.round(((s || 0) + t + g - l * LATE - b * NOBUY) * 100) / 100]] : [];
@@ -52,4 +54,4 @@ function verdict(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = 
   return {n, min, who: score.filter(x => x[1] === min).map(x => x[0]),
     req: requests.filter(r => r.ts < at && !(r.done?.ts < at)).sort((a, b) => a.ts - b.ts)[0]};
 }
-if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, due, late, deedAt, lows, nobuy, verdict};
+if (typeof module === 'object') module.exports = {people, bosses, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, late, deedAt, lows, nobuy, verdict};
