@@ -67,6 +67,24 @@
         }
       }
     },
+    "deeds": {
+      "$id": {
+        ".write": "!data.exists() || !newData.exists()",
+        ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('ts').isNumber()",
+        "votes": {
+          "$name": {
+            ".write": true,
+            ".validate": "newData.isNumber() && $name !== newData.parent().parent().child('by').val() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
+          }
+        }
+      }
+    },
+    "~photos": {
+      "$id": {
+        ".write": "!data.exists() || !newData.exists()",
+        ".validate": "newData.child('before').isString() && newData.child('before').val().beginsWith('data:image/jpeg;base64,') && newData.child('before').val().length <= 300000 && newData.child('after').isString() && newData.child('after').val().beginsWith('data:image/jpeg;base64,') && newData.child('after').val().length <= 300000"
+      }
+    },
     "requests": {
       "$id": {
         ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",

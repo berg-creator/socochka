@@ -186,11 +186,26 @@ const byWhen = (a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.tim
 const when = e => short(day(e.date)) + (e.time ? ' в ' + e.time : '');
 // уведомление всем в ntfy; не дошло — не страшно, запись уже в базе
 const notify = (message, tab) => fetch('https://ntfy.sh/', {method: 'POST', body: JSON.stringify({topic: TOPIC, title: 'Соцочка', message, click: SITE + '#' + tab})}).catch(() => {});
+// фото добрых дел лежат отдельно (~photos): грузятся при показе и запоминаются до перезагрузки страницы
+const pics = {};
+const showPics = () => document.querySelectorAll('img[data-pic]').forEach(img =>
+  (pics[img.dataset.pic] ||= fetch(`${DB}/~photos/${img.dataset.pic}.json`).then(r => r.json()).catch(() => null)).then(p => { if (p) img.src = p[img.dataset.k]; }));
+// фото с телефона ужимаем до 800px по длинной стороне, JPEG — около 100 КБ на снимок
+async function shrink(file) {
+  const img = new Image(), c = document.createElement('canvas');
+  img.src = URL.createObjectURL(file);
+  await img.decode();
+  const k = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
+  c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+  c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(img.src);
+  return c.toDataURL('image/jpeg', 0.6);
+}
 
 function render() {
   const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
   const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.done);
-  const v = verdict(marks, requests, trashOut, cleaned, accepted), vw = v.who.join(' и '), vr = vw ? v.req : null, fine = vr && !vr.done && v.who.includes(me);
+  const lw = lows(paper, buys), v = verdict(marks, requests, trashOut, cleaned, accepted, lw), vw = v.who.join(' и '), vr = vw ? v.req : null, fine = vr && !vr.done && v.who.includes(me);
   const [pc, pw] = lvl(paper?.rolls ?? 0);
 
   // сводка сверху: главное с первого взгляда, тап ведёт во вкладку
@@ -231,22 +246,24 @@ function render() {
   }).join('');
   shownW = w;
 
+  const nb = p => Array.from({length: today + 1}, (_, n) => n).filter(n => bosses[mod(n)] === p && nobuy(lw, n)); // недели, где староста p не купил бумагу
   const rank = people.map(p => {
     const s = Object.values(marks).map(m => m?.[p]).filter(Number.isInteger), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0);
-    const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length;
-    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t - l * LATE, s.length, t, l];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + trashPts за вынос мусора − LATE за каждую просроченную уборку
-  const extra = (t, l) => (t ? ` · 🗑 +${t}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '');
+    const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length, b = nb(p).length;
+    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t - l * LATE - b * NOBUY, s.length, t, l, b];
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка старосты + trashPts за вынос мусора − LATE за каждую просроченную уборку − NOBUY за бумагу
+  const extra = (t, l, b) => (t ? ` · 🗑 +${t}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
     ...Object.entries(marks).filter(([, m]) => Number.isInteger(m?.[p])).map(([n, m]) => [START + n * WEEK, '⭐', `Оценка старосты ${bosses[mod(n)]}, неделя с ${fmt(START + n * WEEK)}`, m[p] + ' ★']),
     ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
-    ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${fmt(START + n * WEEK)}`, '−' + LATE])
+    ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${fmt(START + n * WEEK)}`, '−' + LATE]),
+    ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${fmt(START + n * WEEK)}`, '−' + NOBUY])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
     + '<div class="rev muted small">Балл = средняя оценка старосты + мусор − просрочки</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
-  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l], i) =>
-    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
+  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g], i) =>
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l, b)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || l || b ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
@@ -254,9 +271,10 @@ function render() {
     : `<a class="row head ${vr && !vr.done ? 'red' : 'green'}" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${vw || 'Без штрафа'}</div><div class="muted small">${vw ? `худший рейтинг, ${v.min.toFixed(1)} ★` : 'оценок и просрочек не было'} · неделя с ${fmt(START + v.n * WEEK)}</div>${vw ? `<div class="small">🔧 ${vr ? esc(vr.text) + (vr.done ? ' · ✓ сделано' : '') : 'открытых заявок не было'}</div>` : ''}</div></a>`);
 
   // бумага: 8 рулонов — полная полоска
+  const dl = paper?.low && Math.max(paper.low, START + today * WEEK) + DAY; // до когда старосте купить без штрафа
   $('paper').innerHTML = !paper ? note || 'Нет данных' : `<div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${paper.rolls} ${plural(paper.rolls, ['рулон', 'рулона', 'рулонов'])}</div><div class="muted small">обновил ${esc(paper.by)}, ${stamp(paper.ts)}</div></div><span class="end badge ${pc}">${pw}</span></div>
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
-    <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу` : `Следит староста: ${nowBoss}`}</p>
+    <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу${dl ? Date.now() < dl ? ` до ${stamp(dl)}, иначе −${NOBUY} балл` : ` — просрочено, −${NOBUY} балл` : ''}` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button>${me === nowBoss ? '<button data-buy="8">+8 купил</button><button data-buy="">другое…</button>' : ''}</div>`;
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
@@ -269,11 +287,11 @@ function render() {
   const mineBuys = buys.filter(b => b.by === me && people.some(p => p !== me && !b.paid[p]));
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.length > 0 || fine);
   const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
-  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl] = rank[ri] || [], about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
+  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg] = rank[ri] || [], has = rn || rt || rl || rb || rg, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
   const [sc, st] = state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
   $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div><span class="end badge ${sc}">${st}</span></a>`
       + (fine ? `<h2>Штраф недели</h2><a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(vr.text)}</div><div class="muted small">худший рейтинг за неделю — эта заявка на тебе</div></div></a>` : '')
-      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${rn || rl ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${rn || rl ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${rn || rl ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
+      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl, rb, rg)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
       + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`
       + (about.length ? `<details class="fold"><summary>Комментарии обо мне (${about.length})</summary>${about.map(r => `<div class="row"><span class="muted small">неделя с ${fmt(START + r.week * WEEK)}</span>${comment(r)}</div>`).join('')}</details>` : ''))
     + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div><button class="end" data-paid="${esc(b.id)}" data-name="${me}">Отдал</button></div>`).join('') || '<p class="muted">Ничего 👌</p>')
@@ -294,6 +312,14 @@ function render() {
       <div class="grow"><div class="name">${esc(e.title)}${ok(e) ? ' ✅' : ''}</div><div class="muted small">${e.time ? esc(e.time) + ' · ' : ''}предложил ${esc(e.by)}</div><div class="small">${e.votes.length ? '👍 ' + e.votes.join(', ') : 'пока никто не голосовал'}</div></div>
       <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-edit="events" data-id="${esc(e.id)}" title="Изменить">✏️</button><button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
+
+  // добрые дела: на проверке — с фото до/после и кнопкой «засчитать», засчитанные — списком
+  const deedRow = d => { const v = Object.keys(d.votes), on = v.includes(me); return `<div class="row${d.at ? ' done' : ''}"><div class="head"><span class="icon">🌟</span><div class="grow"><div>${esc(d.text)}</div><div class="muted small">${esc(d.by)}, ${stamp(d.ts)}${d.at ? ` · ✓ +${DEED}` : ''} · ${v.length ? '👍 ' + esc(v.join(', ')) : 'пока никто не засчитал'}</div></div>${d.at || d.by === me ? '' : `<button class="end vote${on ? ' on' : ''}" data-deed="${esc(d.id)}">${on ? '✓ за' : '👍 засчитать'}</button>`}${d.by === me ? `<button class="del" data-del="deeds" data-id="${esc(d.id)}" title="Удалить">🗑</button>` : ''}</div>`
+    + (d.at ? '' : `<div class="two pics">${[['before', 'до'], ['after', 'после']].map(([k, c]) => `<figure><img data-pic="${esc(d.id)}" data-k="${k}" alt="${c}"><figcaption class="muted small">${c}</figcaption></figure>`).join('')}</div>`) + '</div>'; };
+  const okd = deeds.filter(d => d.at).sort((a, b) => b.at - a.at);
+  $('deeds').innerHTML = note || (deeds.filter(d => !d.at).sort((a, b) => b.ts - a.ts).map(deedRow).join('') || '<p class="muted">На проверке ничего нет</p>')
+    + (okd.length ? `<details class="fold"><summary>Засчитано (${okd.length})</summary>${okd.map(deedRow).join('')}</details>` : '');
+  showPics();
 
   renderCal();
 }
@@ -340,7 +366,7 @@ async function send(path, method, body, btn) {
 
 async function load() {
   try {
-    const res = await fetch(DB + '/.json');
+    const res = await fetch(ALL);
     if (!res.ok) throw res.status;
     const data = await res.json() || {};
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id, likes: members.filter(p => r?.likes?.[p]),
@@ -356,6 +382,7 @@ async function load() {
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
       .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
+    deeds = Object.entries(data.deeds || {}).map(([id, d]) => ({...d, id, votes: d.votes || {}, at: deedAt(d)})).filter(d => typeof d.text === 'string' && typeof d.by === 'string');
     note = '';
   } catch { note = 'Не загрузилось — обнови страницу'; }
   render();
@@ -380,6 +407,19 @@ $('list').addEventListener('submit', async e => {
 });
 $('list').addEventListener('toggle', e => e.target.open || render(), true);
 
+// доброе дело: текст — в deeds, оба фото — в ~photos, одним запросом
+$('deedForm').onsubmit = async e => {
+  e.preventDefault();
+  if (!need()) return;
+  const f = e.target, el = f.elements, b = f.querySelector('button'), ts = Date.now(), d = {by: me, text: el.text.value.trim(), ts};
+  if (!d.text) return;
+  b.disabled = true;
+  const [before, after] = await Promise.all([shrink(el.before.files[0]), shrink(el.after.files[0])]).catch(() => []);
+  b.disabled = false;
+  if (!after) return alert('Фото не открылось, выбери другое');
+  if (await send('', 'PATCH', {['deeds/' + ts]: d, ['~photos/' + ts]: {before, after}}, b)) { f.reset(); notify(`🌟 ${me}: ${d.text}. Глянь фото до и после — засчитай`, 'home'); }
+};
+
 $('reqForm').onsubmit = async e => {
   e.preventDefault();
   if (!need()) return;
@@ -393,7 +433,7 @@ $('buyForm').onsubmit = async e => {
   e.preventDefault();
   if (!need()) return;
   const f = e.target, n = +f.elements.n.value, price = +f.elements.price.value, ts = Date.now(), b = {n, price, by: me, ts};
-  const ok = await send('', 'PATCH', {paper: {rolls: Math.min(99, (paper?.rolls ?? 0) + n), by: me, ts}, ['buys/' + ts]: b}, f.querySelector('button:not([type])'));
+  const ok = await send('', 'PATCH', {paper: {rolls: Math.min(99, (paper?.rolls ?? 0) + n), by: me, ts}, ['buys/' + ts]: {...b, low: paper?.low}}, f.querySelector('button:not([type])'));
   if (ok) { f.reset(); f.hidden = true; notify(`🧻 ${me} купил ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} за ${price} ₽. Скидываемся по ${share(b)} ₽ → ${me}: ${people.filter(p => p !== me).join(', ')}`, 'my'); }
 };
 $('buyForm').oninput = e => { const p = +e.currentTarget.elements.price.value; $('buyShare').textContent = p ? `С каждого из четверых по ${share({price: p})} ₽` : 'Скидываются все четверо поровну'; };
@@ -416,7 +456,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply]');
+  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed]');
   if (!b) return;
   const x = b.dataset;
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
@@ -431,8 +471,8 @@ document.addEventListener('click', e => {
   }
   if (x.paid) send(`buys/${encodeURIComponent(x.paid)}/paid/${x.name}`, 'PUT', Date.now(), b);
   if (x.paper) {
-    const n = Math.max(0, paper.rolls + +x.paper), was = paper.rolls;
-    send('paper', 'PUT', {rolls: n, by: me, ts: Date.now()}, b)
+    const n = Math.max(0, paper.rolls + +x.paper), was = paper.rolls, ts = Date.now();
+    send('paper', 'PUT', {rolls: n, by: me, ts, low: n <= 2 ? paper.low || ts : undefined}, b)
       .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
   }
   if (x.trash === 'full') send('trash', 'PUT', {full: true, by: me, ts: Date.now()}, b).then(ok => ok && notify(`🗑 Мусорка переполнена — кто вынесет? Отметил ${me}`, 'home'));
@@ -462,7 +502,13 @@ document.addEventListener('click', e => {
     f.querySelector('button').textContent = 'Сохранить';
     $('evFold').open = true; el.title.focus();
   }
-  if (x.del && confirm('Удалить насовсем?')) send(`${x.del}/${encodeURIComponent(x.id)}`, 'DELETE', undefined, b);
+  if (x.del && confirm('Удалить насовсем?')) x.del === 'deeds' ? send('', 'PATCH', {['deeds/' + x.id]: null, ['~photos/' + x.id]: null}, b) : send(`${x.del}/${encodeURIComponent(x.id)}`, 'DELETE', undefined, b);
+  // голос «за» — время нажатия; второй голос засчитывает дело (deedAt в shared.js)
+  if (x.deed) {
+    const on = b.classList.contains('on'), d = deeds.find(d => d.id === x.deed);
+    send(`deeds/${x.deed}/votes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : Date.now(), b)
+      .then(ok => ok && !on && Object.keys(d.votes).length === 1 && notify(`🌟 Засчитано: ${d.by} +${DEED} — ${d.text}`, 'home'));
+  }
   if (x.vote) {
     const on = b.classList.contains('on'), ev = events.find(e => e.id === x.vote);
     send(`events/${encodeURIComponent(x.vote)}/votes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : true, b)
@@ -491,7 +537,7 @@ showTab();
 render();
 load();
 // живое обновление: Firebase шлёт событие при любом изменении базы, свайп не нужен
-const live = new EventSource(DB + '/.json');
+const live = new EventSource(ALL);
 live.addEventListener('put', load);
 live.addEventListener('patch', load);
 
