@@ -266,18 +266,19 @@ function render() {
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const done = cleaned[w]?.[p];
     const acc = accepted[w]?.[p];
-    const [sc, st] = note || Date.now() < monday(w) ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
+    const off = note || Date.now() < monday(w); // до понедельника карточка — лишь справка, кто что убирает
+    const [sc, st] = off ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
     const revs = mine.map(comment).join('');
     // своё отмечают «убрал», принимает только староста; комментарии на статус и рейтинг не влияют
     const act = acc || Date.now() < monday(w) ? '' : p === me && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
-    // звёзды ставит староста; его собственный объект оценивают все участники, кроме него, балл — среднее. Менять — до итогов в среду
+    // звёзды ставит староста; его собственный объект оценивают все участники, кроме него, балл — среднее. с понедельника до итогов в среду
     const m = marks[w]?.[p] || {}, mark = avg(m), k = Object.keys(m), judge = p === boss ? me !== p && members.includes(me) : me === boss;
     // у старосты — средняя и кто сколько поставил (по плашке на оценщика), у остальных — звёзды и кто ставил
     const got = !mark ? '' : p === boss ? `<div class="rev"><span class="score">${stars(Math.round(mark))} ${mark.toFixed(1)}</span> <span class="muted small">средняя</span></div><div class="rev chips">${k.map(x => `<span class="chip">${esc(x)} <b>${m[x]} ★</b></span>`).join('')}</div>`
       : `<div class="rev"><span class="score">${stars(Math.round(mark))}</span> <span class="muted">${k.length > 1 ? mark.toFixed(1) + ' ' : ''}— ${esc(k.join(', '))}</span></div>`;
-    const rate = note || w > today ? '' : judge && Date.now() < due(w) ? `<div class="rev"><span class="muted small">Твоя оценка </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= m[me] ? '★' : '☆'}</button>`).join('')}</div>${p === boss ? got : ''}`
+    const rate = off ? '' : judge && Date.now() < due(w) ? `<div class="rev"><span class="muted small">Твоя оценка </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= m[me] ? '★' : '☆'}</button>`).join('')}</div>${p === boss ? got : ''}`
       : got;
-    const form = note || w > today ? '' : act + (p === me ? '' : `<details><summary>Комментировать</summary><form data-who="${p}">
+    const form = off ? '' : act + (p === me ? '' : `<details><summary>Комментировать</summary><form data-who="${p}">
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий" required></textarea>
       <button>Отправить</button></form></details>`);
     return `<div class="row ${sc || ''}${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${rate}${revs}${form}</div>`;
