@@ -21,7 +21,10 @@ main{width:100%;max-width:440px;overflow-x:clip} /* въезжающий раз�
 header{display:flex;align-items:center;justify-content:space-between;gap:12px}
 h1{margin:0;font-size:32px;display:flex;align-items:center;gap:10px}
 .logo{width:40px;height:40px;border-radius:10px}
-h2{font-size:15px;color:var(--muted);font-weight:500;margin:28px 0 10px}
+h2{font-size:20px;font-weight:700;margin:32px 0 10px;scroll-margin-top:16px}
+/* оглавление вкладки: что внутри, тап — прокрутка к разделу */
+.jump{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 0}
+.jump button{border:0;border-radius:99px;padding:6px 12px;font-size:14px;background:var(--card)}
 h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:16px 0 6px}
 #me:invalid{border-color:var(--gold);color:var(--gold)}
 .tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:16px 0 10px}
@@ -32,10 +35,11 @@ h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05
 [hidden]{display:none!important}
 /* вкладки — табуретка: сиденье сверху, четыре раздела — четыре ножки, ножка раздела, где ты сейчас, золотая */
 .tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:0 4px 6px;background:var(--card);border-radius:14px;border-top:6px solid var(--gold)}
-.tabs a{text-align:center;padding:0 2px 4px;border-radius:0 0 10px 10px;color:var(--muted);text-decoration:none;font-weight:600;font-size:13px}
+.tabs a{text-align:center;padding:0 2px 4px;border-radius:0 0 10px 10px;color:var(--text);text-decoration:none;font-weight:600;font-size:14px}
 .tabs a::before{content:'';display:block;width:4px;height:10px;margin:0 auto 4px;border-radius:0 0 2px 2px;background:var(--line);transform:rotate(var(--tilt));transform-origin:top;transition:height .2s,background .2s}
 .tabs a:nth-child(1){--tilt:14deg}.tabs a:nth-child(2){--tilt:5deg}.tabs a:nth-child(3){--tilt:-5deg}.tabs a:nth-child(4){--tilt:-14deg}
-.tabs a.on{color:var(--text)}
+.tabs a:not(.on){opacity:.6}
+.tabs a.on{background:color-mix(in srgb,var(--gold) 18%,transparent)}
 .tabs a.on::before{background:var(--gold);height:16px}
 .tabs a.owe::before{background:var(--red)}
 .tabs b{display:block;font-size:22px;line-height:1.2}
@@ -117,14 +121,15 @@ button{cursor:pointer}
 <div class="nav"><button id="prev" aria-label="Неделя назад">←</button><div class="week" id="week"></div><button id="next" aria-label="Неделя вперёд">→</button></div>
 <p class="boss" id="boss"></p>
 <div id="list"></div>
-<h2>Итоги недели</h2>
+<h2>🏆 Итоги недели</h2>
 <div id="verdict"></div>
-<h2>Рейтинг за всё время</h2>
+<h2>📊 Рейтинг за всё время</h2>
 <div id="rating"></div>
 </section>
 
 <section data-tab="home" hidden>
-<h2>Туалетная бумага</h2>
+<div class="jump"><button data-jump="hPaper">🧻 Бумага</button><button data-jump="hTrash">🗑 Мусор</button><button data-jump="hDeeds">💚 Добрые дела</button><button data-jump="hReqs">🔧 Заявки</button></div>
+<h2 id="hPaper">🧻 Туалетная бумага</h2>
 <div class="row" id="paper"></div>
 <form id="buyForm" class="row" hidden>
   <input name="n" type="number" min="1" max="99" inputmode="numeric" placeholder="Сколько рулонов" aria-label="Сколько рулонов" required>
@@ -132,9 +137,9 @@ button{cursor:pointer}
   <p class="muted small" id="buyShare">Скидываются все четверо поровну</p>
   <div class="two"><button type="button" id="buyCancel">Отмена</button><button>Готово</button></div>
 </form>
-<h2>Мусор</h2>
+<h2 id="hTrash">🗑 Мусор</h2>
 <div class="row" id="trash"></div>
-<h2>Добрые дела</h2>
+<h2 id="hDeeds">💚 Добрые дела</h2>
 <p class="muted small hint">Сфоткай до и после — если двое засчитают, тебе +1 в рейтинг. Одно дело в день</p>
 <form id="deedForm" class="row">
   <input name="text" maxlength="200" placeholder="Что сделал? Например: протёр стол" aria-label="Что сделал" required>
@@ -142,7 +147,7 @@ button{cursor:pointer}
   <button>Отправить на проверку</button>
 </form>
 <div id="deeds"></div>
-<h2>Заявки: ремонт и покупки</h2>
+<h2 id="hReqs">🔧 Заявки: ремонт и покупки</h2>
 <form id="reqForm" class="row add">
   <select name="kind" aria-label="Тип заявки"><option value="fix">🔧 Ремонт</option><option value="buy">🛒 Купить</option></select>
   <input name="text" maxlength="200" placeholder="Что нужно?" aria-label="Описание" required>
@@ -152,7 +157,7 @@ button{cursor:pointer}
 </section>
 
 <section data-tab="events" hidden>
-<h2>Афиша — предлагай и голосуй</h2>
+<h2>🗳 Афиша — предлагай и голосуй</h2>
 <p class="muted small hint">Событие в силе ✅, когда «за» трое из четверых</p>
 <details class="fold" id="evFold"><summary>＋ Предложить событие</summary><form id="evForm" class="row">
   <input name="title" maxlength="100" placeholder="Кино, настолки, ужин…" aria-label="Что" required>
@@ -160,7 +165,7 @@ button{cursor:pointer}
   <button>Предложить</button>
 </form></details>
 <div id="events"></div>
-<h2>Календарь</h2>
+<h2>📅 Календарь</h2>
 <div class="row" id="cal"></div>
 </section>
 
@@ -479,9 +484,10 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed]');
+  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump]');
   if (!b) return;
   const x = b.dataset;
+  if (x.jump) return $(x.jump).scrollIntoView({behavior: 'smooth'});
   if (x.month) { cal.setMonth(cal.getMonth() + +x.month); return renderCal(); }
   if (x.day) { sel = sel === x.day ? '' : x.day; return renderCal(); }
   if (x.propose) { const f = $('evForm').elements; f.date.value = sel; $('evFold').open = true; return f.title.focus(); }
