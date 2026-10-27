@@ -3,16 +3,18 @@
     ".read": true,
     "reviews": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val() && (!newData.exists() || newData.child('by').val() === data.child('by').val())",
         ".validate": "newData.child('week').isNumber() && newData.child('who').isString() && newData.child('who').val() !== newData.child('by').val() && newData.child('by').isString() && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500",
         "replies": {
           "$rid": {
-            ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500 && newData.child('ts').isNumber()"
+            ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 500 && newData.child('ts').isNumber()",
+            ".write": "newData.exists() ? !data.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val()"
           }
         },
         "likes": {
           "$name": {
-            ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
+            ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')",
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name"
           }
         }
       }
@@ -20,7 +22,7 @@
     "marks": {
       "$week": {
         "$name": {
-          ".write": true,
+          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== null && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== $name",
           ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 5 && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
         }
       }
@@ -28,7 +30,7 @@
     "cleaned": {
       "$week": {
         "$name": {
-          ".write": true,
+          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name",
           ".validate": "newData.isNumber() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
         }
       }
@@ -36,32 +38,32 @@
     "accepted": {
       "$week": {
         "$name": {
-          ".write": true,
+          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== null",
           ".validate": "newData.isNumber() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
         }
       }
     },
     "paper": {
-      ".write": "newData.exists()",
+      ".write": "newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val()",
       ".validate": "newData.child('rolls').isNumber() && newData.child('rolls').val() % 1 === 0 && newData.child('rolls').val() >= 0 && newData.child('rolls').val() <= 99 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"
     },
     "trash": {
-      ".write": "newData.exists()",
+      ".write": "newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val()",
       ".validate": "newData.child('full').isBoolean() && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber() && (!newData.child('with').exists() || newData.child('with').isString() && newData.child('with').val().length <= 20)"
     },
     "trashOut": {
       "$id": {
-        ".write": "!data.exists() && newData.exists()",
+        ".write": "!data.exists() && newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val()",
         ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber() && (!newData.child('with').exists() || newData.child('with').isString() && newData.child('with').val().length <= 20)"
       }
     },
     "buys": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : !newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val()",
         ".validate": "newData.child('n').isNumber() && newData.child('n').val() % 1 === 0 && newData.child('n').val() >= 1 && newData.child('n').val() <= 99 && newData.child('price').isNumber() && newData.child('price').val() > 0 && newData.child('price').val() <= 100000 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "paid": {
           "$name": {
-            ".write": true,
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.parent().parent().child('by').val()",
             ".validate": "newData.isNumber() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
           }
         }
@@ -69,11 +71,11 @@
     },
     "deeds": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : !newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val()",
         ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('ts').isNumber()",
         "votes": {
           "$name": {
-            ".write": true,
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name",
             ".validate": "newData.isNumber() && $name !== newData.parent().parent().child('by').val() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
           }
         }
@@ -81,27 +83,27 @@
     },
     "~photos": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.parent().parent().child('deeds').child($id).child('by').val() : !newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === root.child('deeds').child($id).child('by').val()",
         ".validate": "newData.child('before').isString() && newData.child('before').val().beginsWith('data:image/jpeg;base64,') && newData.child('before').val().length <= 300000 && newData.child('after').isString() && newData.child('after').val().beginsWith('data:image/jpeg;base64,') && newData.child('after').val().length <= 300000"
       }
     },
     "requests": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val() && (!newData.exists() || newData.child('by').val() === data.child('by').val())",
         ".validate": "(newData.child('kind').val() === 'fix' || newData.child('kind').val() === 'buy') && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "done": {
-          ".write": "!data.exists() && newData.exists()",
+          ".write": "!data.exists() && newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val()",
           ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"
         }
       }
     },
     "events": {
       "$id": {
-        ".write": "!data.exists() || !newData.exists() || newData.child('by').val() === data.child('by').val()",
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('by').val() && (!newData.exists() || newData.child('by').val() === data.child('by').val())",
         ".validate": "newData.child('title').isString() && newData.child('title').val().length > 0 && newData.child('title').val().length <= 100 && newData.child('date').isString() && newData.child('date').val().matches(/^20[0-9][0-9]-[01][0-9]-[0-3][0-9]$/) && (!newData.child('time').exists() || newData.child('time').isString() && newData.child('time').val().matches(/^[0-2][0-9]:[0-5][0-9]$/)) && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "votes": {
           "$name": {
-            ".write": true,
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name",
             ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
           }
         }
