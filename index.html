@@ -94,7 +94,7 @@ button{cursor:pointer}
 .hint{margin:-4px 0 10px}
 .date{width:44px;flex:none;text-align:center;font-size:12px;color:var(--muted);line-height:1.2}
 .date b{display:block;font-size:22px;color:var(--text)}
-.vote.on{background:var(--green);border-color:var(--green);color:#fff}
+.vote.on{background:var(--green);border-color:var(--green);color:#fff}.vote.on.no{background:var(--red);border-color:var(--red)}
 .pics{margin-top:10px;align-items:start}
 .pics figure{margin:0}
 .pics img{display:block;width:100%;min-height:60px;border-radius:10px;background:var(--bg)}
@@ -147,7 +147,7 @@ button{cursor:pointer}
 <h2 id="hTrash">🗑 Мусор</h2>
 <div class="row" id="trash"></div>
 <h2 id="hDeeds">💚 Добрые дела</h2>
-<p class="muted small hint">Сфоткай до и после — если двое засчитают, тебе +1 в рейтинг. Одно дело в день</p>
+<p class="muted small hint">Сфоткай до и после — через сутки тебе +1 в рейтинг, если двое не будут против (два 👍 — сразу). Одно дело в день</p>
 <form id="deedForm" class="row">
   <input name="text" maxlength="200" placeholder="Что сделал? Например: протёр стол" aria-label="Что сделал" required>
   <div class="two"><label class="muted small">📷 До<input name="before" type="file" accept="image/*" required></label><label class="muted small">📷 После<input name="after" type="file" accept="image/*" required></label></div>
@@ -298,7 +298,7 @@ function render() {
     ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
     ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${since(n)}`, '−' + LATE]),
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${since(n)}`, '−' + NOBUY]),
-    ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, засчитали ${esc(Object.keys(d.votes).join(', '))}`, '+' + DEED])
+    ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
     + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела − просрочки</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
@@ -353,12 +353,12 @@ function render() {
       <button class="end vote${on ? ' on' : ''}" data-vote="${esc(e.id)}">${on ? '✓ иду' : '👍 за'}</button>${e.by === me ? `<button class="del" data-edit="events" data-id="${esc(e.id)}" title="Изменить">✏️</button><button class="del" data-del="events" data-id="${esc(e.id)}" title="Удалить">🗑</button>` : ''}</div>`;
   }).join('') || '<p class="muted">Пока пусто — предложи, чем заняться на неделе</p>';
 
-  // добрые дела: на проверке — с фото до/после и кнопкой «засчитать», засчитанные — списком
-  const deedRow = d => { const v = Object.keys(d.votes), on = v.includes(me); return `<div class="row${d.at ? ' done' : ''}"><div class="head"><span class="icon">🌟</span><div class="grow"><div>${esc(d.text)}</div><div class="muted small">${esc(d.by)}, ${stamp(d.ts)}${d.at ? ` · ✓ +${DEED}` : ''} · ${v.length ? '👍 ' + esc(v.join(', ')) : 'пока никто не засчитал'}</div></div>${d.at || d.by === me ? '' : `<button class="end vote${on ? ' on' : ''}" data-deed="${esc(d.id)}">${on ? '✓ за' : '👍 засчитать'}</button>`}${d.by === me ? `<button class="del" data-del="deeds" data-id="${esc(d.id)}" title="Удалить">🗑</button>` : ''}</div>`
-    + (d.at ? '' : `<div class="two pics">${[['before', 'до'], ['after', 'после']].map(([k, c]) => `<figure><img data-pic="${esc(d.id)}" data-k="${k}" alt="${c}"><figcaption class="muted small">${c}</figcaption></figure>`).join('')}</div>`) + '</div>'; };
-  const okd = deeds.filter(d => d.at).sort((a, b) => b.at - a.at);
-  $('deeds').innerHTML = note || (deeds.filter(d => !d.at).sort((a, b) => b.ts - a.ts).map(deedRow).join('') || '<p class="muted">На проверке ничего нет</p>')
-    + (okd.length ? `<details class="fold"><summary>Засчитано (${okd.length})</summary>${okd.map(deedRow).join('')}</details>` : '');
+  // добрые дела: на проверке — с фото до/после и кнопками 👍/👎, решённые — списком
+  const deedRow = d => { const my = d.votes[me], open = !d.at && !d.no; return `<div class="row${open ? '' : ' done'}"><div class="head"><span class="icon">🌟</span><div class="grow"><div>${esc(d.text)}</div><div class="muted small">${esc(d.by)}, ${stamp(d.ts)}${d.at ? ` · ✓ +${DEED}` : d.no ? ' · ✕ отклонено' : d.end < Infinity ? ` · засчитается ${stamp(d.end)}, если двое не против` : ' · нужно два 👍'}${d.up.length ? ' · 👍 ' + esc(d.up.join(', ')) : ''}${d.down.length ? ' · 👎 ' + esc(d.down.join(', ')) : ''}</div></div>${!open || d.by === me ? '' : `<button class="end vote${my > 0 ? ' on' : ''}" data-deed="${esc(d.id)}" data-v="1">👍</button><button class="vote no${my < 0 ? ' on' : ''}" data-deed="${esc(d.id)}" data-v="-1">👎</button>`}${d.by === me ? `<button class="del" data-del="deeds" data-id="${esc(d.id)}" title="Удалить">🗑</button>` : ''}</div>`
+    + (!open ? '' : `<div class="two pics">${[['before', 'до'], ['after', 'после']].map(([k, c]) => `<figure><img data-pic="${esc(d.id)}" data-k="${k}" alt="${c}"><figcaption class="muted small">${c}</figcaption></figure>`).join('')}</div>`) + '</div>'; };
+  const okd = deeds.filter(d => d.at || d.no).sort((a, b) => b.ts - a.ts);
+  $('deeds').innerHTML = note || (deeds.filter(d => !d.at && !d.no).sort((a, b) => b.ts - a.ts).map(deedRow).join('') || '<p class="muted">На проверке ничего нет</p>')
+    + (okd.length ? `<details class="fold"><summary>Проверено (${okd.length})</summary>${okd.map(deedRow).join('')}</details>` : '');
   showPics();
 
   renderCal();
@@ -453,7 +453,11 @@ async function load() {
     requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
       .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
-    deeds = Object.entries(data.deeds || {}).map(([id, d]) => ({...d, id, votes: d.votes || {}, at: deedAt(d)})).filter(d => typeof d.text === 'string' && typeof d.by === 'string');
+    // at — когда засчитано (только если уже), no — отклонено, end — когда засчитается само.
+    // ponytail: дело, засчитанное «по таймеру», переедет в «Проверено» при следующем обновлении данных, не ровно в срок
+    deeds = Object.entries(data.deeds || {}).map(([id, d]) => { const votes = d.votes || {}, at = deedAt(d), names = s => Object.keys(votes).filter(k => Math.sign(votes[k]) === s);
+      return {...d, id, votes, at: at <= Date.now() ? at : undefined, no: at === undefined, end: d.ts < due(0) ? Infinity : d.ts + DAY, up: names(1), down: names(-1)}; })
+      .filter(d => typeof d.text === 'string' && typeof d.by === 'string');
     note = '';
   } catch { note = 'Не загрузилось — обнови страницу'; }
   render();
@@ -502,7 +506,7 @@ $('deedForm').onsubmit = async e => {
   const [before, after] = await Promise.all([shrink(el.before.files[0]), shrink(el.after.files[0])]).catch(() => []);
   b.disabled = false;
   if (!after) return alert('Фото не открылось, выбери другое');
-  if (await send('', 'PATCH', {['deeds/' + ts]: d, ['~photos/' + ts]: {before, after}}, b)) { f.reset(); notify(`🌟 ${me}: ${d.text}. Глянь фото до и после — засчитай`, 'home'); }
+  if (await send('', 'PATCH', {['deeds/' + ts]: d, ['~photos/' + ts]: {before, after}}, b)) { f.reset(); notify(`🌟 ${me}: ${d.text}. Глянь фото до и после: не против — ничего не жми, через сутки засчитается`, 'home'); }
 };
 
 $('reqForm').onsubmit = async e => {
@@ -595,11 +599,11 @@ document.addEventListener('click', e => {
     $('evFold').open = true; el.title.focus();
   }
   if (x.del && confirm('Удалить насовсем?')) x.del === 'deeds' ? send('', 'PATCH', {['deeds/' + x.id]: null, ['~photos/' + x.id]: null}, b) : send(`${x.del}/${encodeURIComponent(x.id)}`, 'DELETE', undefined, b);
-  // голос «за» — время нажатия; второй голос засчитывает дело (deedAt в shared.js)
+  // голос — время нажатия, «против» со знаком минус; кто решил исход вторым голосом — тот и шлёт пуш (deedAt в shared.js)
   if (x.deed) {
-    const on = b.classList.contains('on'), d = deeds.find(d => d.id === x.deed);
-    send(`deeds/${x.deed}/votes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : Date.now(), b)
-      .then(ok => ok && !on && Object.keys(d.votes).length === 1 && notify(`🌟 Засчитано: ${d.by} +${DEED} — ${d.text}`, 'home'));
+    const on = b.classList.contains('on'), d = deeds.find(d => d.id === x.deed), v = x.v * Date.now(), at = deedAt({...d, votes: {...d.votes, [me]: v}});
+    send(`deeds/${x.deed}/votes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : v, b)
+      .then(ok => ok && !on && (at === v || at === undefined) && notify(at === v ? `🌟 Засчитано: ${d.by} +${DEED} — ${d.text}` : `✕ Не засчитано: ${d.by} — ${d.text}`, 'home'));
   }
   if (x.vote) {
     const on = b.classList.contains('on'), ev = events.find(e => e.id === x.vote);
