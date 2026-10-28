@@ -113,7 +113,7 @@ button{cursor:pointer}
 .dayinfo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:4px}
 .link{border:0;background:none;padding:4px 0;color:var(--gold);text-align:left}
 /* гость (не вошёл) — только смотрит: формы и кнопки действий скрыты, лайки видны, но не жмутся */
-.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed]){display:none}
+.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed],[data-price],[data-ok],[data-undo]){display:none}
 .guest [data-like]{pointer-events:none}
 </style>
 </head>
@@ -155,6 +155,7 @@ button{cursor:pointer}
 </form>
 <div id="deeds"></div>
 <h2 id="hReqs">🔧 Заявки: ремонт и покупки</h2>
+<p class="muted small hint">Оцени, сколько баллов стоит заявка (1–5): цена — среднее всех голосов. Сделал любую — сдай старосте, после приёма цена идёт тебе в рейтинг. Штрафную заявку должник делает без баллов; сделал её кто-то другой — долг переходит на следующую</p>
 <form id="reqForm" class="row add">
   <select name="kind" aria-label="Тип заявки"><option value="fix">🔧 Ремонт</option><option value="buy">🛒 Купить</option></select>
   <input name="text" maxlength="200" placeholder="Что нужно?" aria-label="Описание" required>
@@ -240,7 +241,7 @@ async function shrink(file) {
 function render() {
   $('me').textContent = me ? me + ' · выйти' : '👀 Гость · войти'; if (me) $('login').hidden = true; document.body.classList.toggle('guest', !me);
   const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
-  const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.done);
+  const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.ok);
   const lw = lows(paper, buys), v = verdict(marks, requests, trashOut, cleaned, accepted, lw, deeds), vw = v.who.join(' и '), vr = vw ? v.req : null, fine = vr && !vr.done && v.who.includes(me);
   const [pc, pw] = lvl(paper?.rolls ?? 0);
 
@@ -288,27 +289,28 @@ function render() {
   const nb = p => Array.from({length: today + 1}, (_, n) => n).filter(n => bosses[mod(n)] === p && nobuy(lw, n)); // недели, где староста p не купил бумагу
   const rank = people.map(p => {
     const s = Object.values(marks).map(m => avg(m?.[p])).filter(x => x !== undefined), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
-    const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length, b = nb(p).length;
-    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g - l * LATE - b * NOBUY, s.length, t, l, b, g];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело − LATE за каждую просроченную уборку − NOBUY за бумагу
-  const extra = (t, l, b, g) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
+    const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length, b = nb(p).length, q = requests.reduce((a, r) => a + reqPts(r, p), 0);
+    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g + q - l * LATE - b * NOBUY, s.length, t, l, b, g, q];
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждую просроченную уборку − NOBUY за бумагу
+  const extra = (t, l, b, g, q) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
     ...Object.entries(marks).filter(([, m]) => avg(m?.[p])).map(([n, m]) => { const k = Object.keys(m[p]); return [START + n * WEEK, '⭐', `Оценка ${k.length > 1 ? 'участников' : 'старосты'} ${esc(k.join(', '))}, неделя с ${since(n)}`, +avg(m[p]).toFixed(1) + ' ★']; }),
     ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
     ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${since(n)}`, '−' + LATE]),
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${since(n)}`, '−' + NOBUY]),
-    ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED])
+    ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED]),
+    ...requests.filter(r => reqPts(r, p)).map(r => [r.ok, '🔧', `Заявка: ${esc(r.text)}, приняли ${stamp(r.ok)}`, '+' + reqPts(r, p)])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
-    + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела − просрочки</div>';
+    + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела + заявки − просрочки</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
-  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g], i) =>
-    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l, b, g)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
+  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g, q], i) =>
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l, b, g, q)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
   $('verdict').innerHTML = note || (v.n < 0 ? `<p class="muted">Первые итоги — в среду, ${fmt(due(0))}, в 00:00</p>`
-    : `<a class="row head ${vr && !vr.done ? 'red' : 'green'}" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${vw || 'Без штрафа'}</div><div class="muted small">${vw ? `худший рейтинг, ${v.min.toFixed(1)} ★` : 'оценок и просрочек не было'} · неделя с ${since(v.n)}</div>${vw ? `<div class="small">🔧 ${vr ? esc(vr.text) + (vr.done ? ' · ✓ сделано' : '') : 'открытых заявок не было'}</div>` : ''}</div></a>`);
+    : `<a class="row head ${vr && !vr.done ? 'red' : 'green'}" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${vw || 'Без штрафа'}</div><div class="muted small">${vw ? `худший рейтинг, ${v.min.toFixed(1)} ★` : 'оценок и просрочек не было'} · неделя с ${since(v.n)}</div>${vw ? `<div class="small">🔧 ${vr ? esc(vr.text) + (vr.ok ? ' · ✓ сделано' : vr.done ? ' · ⏳ сдано старосте' : '') : 'открытых заявок не было'}</div>` : ''}</div></a>`);
 
   // бумага: 8 рулонов — полная полоска
   const dl = paper?.low && Math.max(paper.low, START + today * WEEK) + DAY; // до когда старосте купить без штрафа
@@ -327,19 +329,29 @@ function render() {
   const mineBuys = buys.filter(b => b.by === me && people.some(p => p !== me && !b.paid[p]));
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.some(b => !b.claim[me]) || fine);
   const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
-  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg] = rank[ri] || [], has = rn || rt || rl || rb || rg, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
+  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg, rq] = rank[ri] || [], has = rn || rt || rl || rb || rg || rq, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
   const [sc, st] = Date.now() < monday(today) ? ['', ''] : state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
   $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div>${st && `<span class="end badge ${sc}">${st}</span>`}</a>`
       + (fine ? `<h2>Штраф недели</h2><a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(vr.text)}</div><div class="muted small">худший рейтинг за неделю — эта заявка на тебе</div></div></a>` : '')
-      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl, rb, rg)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
+      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl, rb, rg, rq)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
       + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`
       + (about.length ? `<details class="fold"><summary>Комментарии обо мне (${about.length})</summary>${about.map(r => `<div class="row"><span class="muted small">неделя с ${since(r.week)}</span>${comment(r)}</div>`).join('')}</details>` : ''))
     + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div>${b.claim[me] ? `<span class="end muted small">ждёт, что ${esc(b.by)} подтвердит</span>` : `<button class="end" data-claim="${esc(b.id)}">Отдал</button>`}</div>`).join('') || '<p class="muted">Ничего 👌</p>')
     + (mineBuys.length ? '<h2>Тебе должны</h2>' + mineBuys.map(b => `<div class="row"><div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽</div><div class="muted small">${short(new Date(b.ts))}, по ${share(b)} ₽</div></div><button class="del" data-del="buys" data-id="${esc(b.id)}" title="Удалить покупку">🗑</button></div>`
       + people.filter(p => p !== me).map(p => `<div class="rev">${b.paid[p] ? `✓ ${p} отдал` : `${p} — ${share(b)} ₽${b.claim[p] ? ' · говорит, что отдал' : ''} <button data-paid="${esc(b.id)}" data-name="${p}">получил</button>${b.claim[p] ? ` <button data-unclaim="${esc(b.id)}" data-name="${p}">не получал</button>` : ''}`}</div>`).join('') + '</div>').join('') : '');
 
-  const reqRow = r => `<div class="row head${r.done ? ' done' : ''}"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r === vr ? ` · 👎 делает ${esc(vw)}` : ''}${r.done ? ` · ✓ ${esc(r.done.by)}, ${short(new Date(r.done.ts))}` : ''}</div></div>${r.done ? '' : `<button class="end" data-done="${esc(r.id)}">Готово</button>`}${r.by === me && !r.done ? `<button class="del" data-edit="requests" data-id="${esc(r.id)}" title="Изменить">✏️</button>` : ''}${r.by === me ? `<button class="del" data-del="requests" data-id="${esc(r.id)}" title="Удалить">🗑</button>` : ''}</div>`;
-  const done = requests.filter(r => r.done).sort((a, b) => b.done.ts - a.done.ts);
+  // заявка: цену голосуют все до приёма; сделавший сдаёт старосте, а сдачу самого старосты принимает любой другой участник
+  const reqRow = r => {
+    const pr = avg(r.price), d = r.done, id = esc(r.id), judge = d && !r.ok && (d.by === nowBoss ? me !== d.by && members.includes(me) : me === nowBoss);
+    const how = r.ok ? `✓ ${esc(d.by)}, принято ${short(new Date(r.ok))}${d.debt ? ' · штраф, без баллов' : reqPts(r, d.by) ? ` · +${reqPts(r, d.by)}` : ''}`
+      : d ? `⏳ ${esc(d.by)} сделал${d.debt ? ' (штраф)' : ''}, ${stamp(d.ts)} — принимает ${d.by === nowBoss ? 'любой, кроме старосты' : '👑 ' + nowBoss}${judge ? ` <button data-ok="${id}">✓ Принять</button>` : ''}${judge || d.by === me ? ` <button data-undo="${id}">✕ ${judge ? 'Не принято' : 'Отменить'}</button>` : ''}`
+      : `<button data-done="${id}"${r === vr && v.who.includes(me) ? ' data-debt="1"' : ''}>✋ Сделал — сдать старосте</button>`;
+    return `<div class="row${r.ok ? ' done' : ''}"><div class="head"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${r === vr ? ` · 👎 делает ${esc(vw)}` : ''}</div></div>${r.by === me && !d ? `<button class="del" data-edit="requests" data-id="${id}" title="Изменить">✏️</button>` : ''}${r.by === me && !r.ok ? `<button class="del" data-del="requests" data-id="${id}" title="Удалить">🗑</button>` : ''}</div>`
+      + `<div class="rev"><span class="muted small">Цена: </span><b>${pr ? +pr.toFixed(1) + ' ' + plural(pr % 1 ? 2 : pr, ['балл', 'балла', 'баллов']) : 'не оценена'}</b>${Object.keys(r.price).length ? ' <span class="muted small">' + Object.entries(r.price).map(([k, n]) => `${esc(k)} ${n}`).join(', ') + '</span>' : ''}</div>`
+      + (r.ok || !members.includes(me) ? '' : `<div class="rev"><span class="muted small">Твоя цена </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-price="${n}" data-id="${id}" aria-label="${n} из 5">${n <= r.price[me] ? '★' : '☆'}</button>`).join('')}</div>`)
+      + `<div class="rev">${how}</div></div>`;
+  };
+  const done = requests.filter(r => r.ok).sort((a, b) => b.ok - a.ok);
   $('requests').innerHTML = note || (open.length ? open.sort((a, b) => b.ts - a.ts).map(reqRow).join('') : '<p class="muted">Открытых заявок нет 👌</p>')
     + (done.length ? `<details class="fold"><summary>Сделано (${done.length})</summary>${done.map(reqRow).join('')}</details>` : '');
 
@@ -450,7 +462,7 @@ async function load() {
     trash = typeof data.trash?.full === 'boolean' ? data.trash : null;
     trashOut = trashCap(Object.values(data.trashOut || {}).filter(o => typeof o?.by === 'string' && typeof o.ts === 'number'));
     buys = Object.entries(data.buys || {}).map(([id, b]) => ({...b, id, paid: b.paid || {}, claim: b.claim || {}})).filter(b => Number.isInteger(b.n) && Number.isFinite(b.price) && typeof b.by === 'string');
-    requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id})).filter(r => typeof r.text === 'string');
+    requests = Object.entries(data.requests || {}).map(([id, r]) => ({...r, id, price: r.price || {}})).filter(r => typeof r.text === 'string');
     events = Object.entries(data.events || {}).map(([id, e]) => ({...e, id, votes: members.filter(p => e?.votes?.[p])}))
       .filter(e => typeof e.title === 'string' && /^\d{4}-\d\d-\d\d$/.test(e.date));
     // at — когда засчитано (только если уже), no — отклонено, end — когда засчитается само.
@@ -545,7 +557,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump]');
+  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump],button[data-price],button[data-ok],button[data-undo]');
   if (!b) return;
   const x = b.dataset;
   if (x.jump) return $(x.jump).scrollIntoView({behavior: 'smooth'});
@@ -579,7 +591,12 @@ document.addEventListener('click', e => {
   if (x.mark) send(`marks/${w}/${x.who}/${me}`, 'PUT', +x.mark, b);
   if (x.like) { const on = b.classList.contains('on'); send(`reviews/${encodeURIComponent(x.like)}/likes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : true, b); }
   if (x.reply) { const t = prompt('Ответ')?.trim().slice(0, 500); if (t) send(`reviews/${encodeURIComponent(x.reply)}/replies`, 'POST', {by: me, text: t, ts: Date.now()}, b); }
-  if (x.done) send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b);
+  if (x.price) send(`requests/${encodeURIComponent(x.id)}/price/${me}`, 'PUT', +x.price, b);
+  if (x.done) { const r = requests.find(r => r.id === x.done), boss = bosses[mod(today)];
+    send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now(), debt: !!x.debt || undefined}, b)
+      .then(ok => ok && notify(`✋ ${me} сделал заявку: ${r.text}. ${me === boss ? 'Прими, кто-нибудь кроме старосты' : boss + ', прими'}`, 'home')); }
+  if (x.ok) send(`requests/${encodeURIComponent(x.ok)}/ok`, 'PUT', Date.now(), b);
+  if (x.undo) send(`requests/${encodeURIComponent(x.undo)}/done`, 'DELETE', null, b);
   if (x.edit === 'requests') {
     const r = requests.find(r => r.id === x.id), t = prompt('Заявка', r.text)?.trim().slice(0, 200);
     if (t && t !== r.text) send(`requests/${encodeURIComponent(x.id)}`, 'PATCH', {text: t}, b);
