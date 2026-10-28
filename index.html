@@ -320,7 +320,7 @@ function render() {
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
   const full = trash?.full;
   $('trash').innerHTML = note || `<div class="head"><div class="grow"><div class="name">${full ? 'Переполнена' : 'Не полная'}</div><div class="muted small">${trash ? `${full ? 'отметил' : trash.with ? 'вынесли' : 'вынес'} ${esc(trash.by)}${trash.with ? ' и ' + esc(trash.with) : ''}, ${stamp(trash.ts)}` : 'пока без отметок'}</div></div><span class="end badge ${full ? 'red' : 'green'}">${full ? 'вынести' : 'норм'}</span></div>
-    <div class="two">${full ? `<select id="with" aria-label="С кем вынес" style="grid-column:1/-1"><option value="">Вынес один — +2</option>${members.filter(x => x !== me).map(x => `<option value="${x}">Вдвоём с: ${x} — по +1</option>`).join('')}</select>` : ''}<button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
+    <div class="two">${full ? `<select id="with" aria-label="С кем вынес" style="grid-column:1/-1"><option value="">Вынес один — +1</option>${members.filter(x => x !== me).map(x => `<option value="${x}">Вдвоём с: ${x} — по +0,5</option>`).join('')}</select>` : ''}<button data-trash="full"${full ? ' disabled' : ''}>Переполнена</button><button data-trash="out"${full ? '' : ' disabled'}>Вынес</button></div>`;
 
   // личное: свой объект и деньги за бумагу
   const owe = people.includes(me) ? buys.filter(b => b.by !== me && !b.paid[me]) : [];

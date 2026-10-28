@@ -15,8 +15,8 @@ const DB = 'https://socochka-default-rtdb.firebaseio.com';
 const ALL = DB + '/.json?orderBy="$key"&endAt="~"';
 // уборка недели n просрочена, если ни сам, ни староста не отметили её до конца недели (среда 00:00 МСК) — минус LATE баллов
 const LATE = 5;
-// вынос мусора: один — 2 балла, вдвоём (with) — по 1 каждому
-const trashPts = (o, p) => o.by === p ? (o.with ? 1 : 2) : o.with === p ? 1 : 0;
+// вынос мусора: один — 1 балл, вдвоём (with) — по 0,5 каждому. До первых итогов (due(0)) было 2 и по 1 — старые выносы считаются по-старому
+const trashPts = (o, p) => (o.by === p || o.with === p) * (o.ts < due(0) ? 2 : 1) / (o.with ? 2 : 1);
 // не больше TRASH выносов в сутки (по Москве) на человека: вынос, где кто-то из двоих уже набрал TRASH, не засчитывается
 const TRASH = 2, msk = ts => Math.floor((ts + 3 * 36e5) / 864e5);
 function trashCap(list) {
