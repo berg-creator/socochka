@@ -101,7 +101,7 @@
         ".validate": "(newData.child('kind').val() === 'fix' || newData.child('kind').val() === 'buy') && newData.child('text').isString() && newData.child('text').val().length > 0 && newData.child('text').val().length <= 200 && newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()",
         "done": {
           ".write": "!data.exists() ? newData.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('by').val() : !newData.exists() && !data.parent().child('ok').exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== null",
-          ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber() && (!newData.child('debt').exists() || newData.child('debt').val() === true)"
+          ".validate": "newData.child('by').isString() && newData.child('by').val().length <= 20 && newData.child('ts').isNumber()"
         },
         "ok": {
           ".write": "!data.exists() && data.parent().child('done').exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() !== null",
