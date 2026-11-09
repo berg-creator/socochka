@@ -141,6 +141,7 @@ button{cursor:pointer}
 <h2 id="hPaper">🧻 Туалетная бумага</h2>
 <div class="row" id="paper"></div>
 <button data-game id="gameBtn" class="row" style="width:100%;border:0;font-weight:600;color:var(--text)">🎮 Карыч: Доставка — сыграть, пока сидишь</button>
+<button data-maks class="row" style="width:100%;border:0;font-weight:600;color:var(--text)">🕵️ Максоник: ВСЁ ЛОЖНО — прогулять пары, не вставая</button>
 <form id="buyForm" class="row" hidden>
   <input name="n" type="number" min="1" max="99" inputmode="numeric" placeholder="Сколько рулонов" aria-label="Сколько рулонов" required>
   <input name="price" type="number" min="1" max="100000" inputmode="numeric" placeholder="Сколько стоило, ₽" aria-label="Сколько стоило" required>
@@ -611,6 +612,13 @@ document.addEventListener('click', e => {
   (gameJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'game.js?v=6'; s.onload = ok; s.onerror = () => { gameJs = null; no(); }; document.head.append(s); }))
     .then(() => karych({paper: () => paper, boss: () => bossOf(bs, today), me: () => members.includes(me) ? me : '', week: gameWeek, submit: gameSave}),
       () => alert('Игра не загрузилась — проверь интернет'));
+});
+// вторая мини-игра (maks.js) — тоже только по кнопке
+let maksJs;
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-maks]')) return;
+  (maksJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'maks.js?v=1'; s.onload = ok; s.onerror = () => { maksJs = null; no(); }; document.head.append(s); }))
+    .then(() => maks(), () => alert('Игра не загрузилась — проверь интернет'));
 });
 document.addEventListener('click', e => {
   const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump],button[data-price],button[data-ok],button[data-undo],button[data-sub],button[data-sub-ok],button[data-sub-no],button[data-bsub],button[data-bsub-ok],button[data-bsub-no]');

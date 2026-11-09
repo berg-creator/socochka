@@ -11,6 +11,7 @@ https://quaternius.com/packs/ultimatedanimatedcharacter.html (License.txt в п�
 | dimon.glb | Casual_Bald.gltf (без клипов) | Димон |
 
 Скелет у всех одинаковый, поэтому клипы хранятся только в kar.glb — game.js проигрывает их на всех.
+Эти же модели берёт вторая игра, maks.js («Максоник»): kar — Максим и одногруппники, baba — Санпинова, king — Аллелев, dimon — одногруппник.
 Цвета, кепка, сумка, платок, корона, плащ, скипетр, цепь — в коде (game.js).
 
 Сборка (node 22+, `npm i @gltf-transform/core @gltf-transform/extensions @gltf-transform/functions meshoptimizer`):
