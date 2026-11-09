@@ -138,6 +138,7 @@ button{cursor:pointer}
 <div class="jump"><button data-jump="hPaper">🧻 Бумага</button><button data-jump="hTrash">🗑 Мусор</button><button data-jump="hDeeds">💚 Добрые дела</button><button data-jump="hReqs">🔧 Заявки</button></div>
 <h2 id="hPaper">🧻 Туалетная бумага</h2>
 <div class="row" id="paper"></div>
+<button data-game id="gameBtn" class="row" style="width:100%;border:0;font-weight:600;color:var(--text)">🎮 Карыч: Доставка — сыграть, пока сидишь</button>
 <form id="buyForm" class="row" hidden>
   <input name="n" type="number" min="1" max="99" inputmode="numeric" placeholder="Сколько рулонов" aria-label="Сколько рулонов" required>
   <input name="price" type="number" min="1" max="100000" inputmode="numeric" placeholder="Сколько стоило, ₽" aria-label="Сколько стоило" required>
@@ -189,7 +190,7 @@ const kinds = {fix: '🔧', buy: '🛒'};
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, shownW, tab, reviews = [], marks = {}, cleaned = {}, accepted = {}, subs = {}, bs = {}, paper = null, trash = null, trashOut = [], buys = [], requests = [], events = [], deeds = [], note = 'Загрузка…';
+let w = today, shownW, tab, reviews = [], marks = {}, cleaned = {}, accepted = {}, subs = {}, bs = {}, paper = null, scores = {}, trash = null, trashOut = [], buys = [], requests = [], events = [], deeds = [], note = 'Загрузка…';
 let logins = {}, tok = {}; try { tok = JSON.parse(localStorage.tok) || {}; } catch {}
 let me = tok.name || '';
 let cal = new Date(), sel = '';
@@ -270,6 +271,7 @@ function render() {
   const lw = lows(paper, buys), all = verdicts(marks, requests, trashOut, cleaned, accepted, lw, deeds, subs, bs), v = all.at(-1) || {n: -1, who: []}, vw = v.who.join(' и '), vr = vw ? v.req : null;
   const mine = all.filter(x => x.req && !x.req.done && x.who.includes(me)), fine = mine.length > 0, owes = p => all.flatMap(x => x.fines.filter(f => f[0] === p).map(f => [x.n, f[1]]));
   const [pc, pw] = lvl(paper?.rolls ?? 0);
+  const lead = gameTop()[0]; // 📬 почтальон недели — лучший в мини-игре за эту неделю, баллов в рейтинг не даёт
 
   // сводка сверху: главное с первого взгляда, тап ведёт во вкладку
   $('tiles').innerHTML = [
@@ -335,7 +337,7 @@ function render() {
     + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела + заявки − просрочки</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g, q], i) =>
-    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}</div><div class="muted">оценок: ${n}${extra(t, l, b, g, q)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}${lead?.[0] === p ? ' <span title="Почтальон недели — рекорд мини-игры">📬</span>' : ''}</div><div class="muted">оценок: ${n}${extra(t, l, b, g, q)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
@@ -348,6 +350,8 @@ function render() {
     <div class="bar"><i class="${pc}" style="width:${Math.max(4, Math.min(100, paper.rolls * 12.5))}%"></i></div>
     <p class="${pc === 'red' ? 'warn' : 'muted small'}">👑 ${pc === 'red' ? `${nowBoss}, пора купить бумагу${dl ? Date.now() < dl ? `: ⏳ <b data-left="${dl}">${left(dl)}</b> (до ${stamp(dl)}), иначе −${NOBUY} балл` : ` — просрочено, −${NOBUY} балл` : ''}` : `Следит староста: ${nowBoss}`}</p>
     <div class="ctl"><button data-paper="-1">−1 взял</button>${me === nowBoss ? '<button data-buy="8">+8 купил</button><button data-buy="">другое…</button>' : ''}</div>`;
+
+  $('gameBtn').innerHTML = '🎮 Карыч: Доставка — сыграть, пока сидишь' + (lead ? `<div class="muted small">📬 Почтальон недели: ${esc(lead[0])} — ${lead[1]}</div>` : '');
 
   // мусор: «переполнена» шлёт всем пуш, «вынес» сбрасывает статус и даёт балл в рейтинг
   const full = trash?.full;
@@ -492,6 +496,7 @@ async function load() {
     accepted = data.accepted || {};
     subs = fixSubs(data.subs); bs = fixBoss(data.bossSubs); // обмены объектами и старостой (shared.js)
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
+    scores = data.game || {}; // рекорды мини-игры: неделя → имя → очки
     trash = typeof data.trash?.full === 'boolean' ? data.trash : null;
     trashOut = trashCap(Object.values(data.trashOut || {}).filter(o => typeof o?.by === 'string' && typeof o.ts === 'number'));
     buys = Object.entries(data.buys || {}).map(([id, b]) => ({...b, id, paid: b.paid || {}, claim: b.claim || {}})).filter(b => Number.isInteger(b.n) && Number.isFinite(b.price) && typeof b.by === 'string');
@@ -589,6 +594,21 @@ $('evForm').onsubmit = async e => {
   if (await send('events', 'POST', ev, f.querySelector('button'))) { f.reset(); $('evFold').open = false; notify(`🎉 ${me} предлагает: ${ev.title}, ${when(ev)}`, 'events'); }
 };
 
+// мини-игра (game.js) грузится только по кнопке — основной странице не мешает. Рекорд недели — game/{неделя}/{имя}, только рост
+const gameWeek = () => Object.fromEntries(Object.entries(scores[today] || {}).filter(([p, v]) => members.includes(p) && Number.isInteger(v)));
+const gameTop = () => Object.entries(gameWeek()).sort((a, b) => b[1] - a[1]);
+async function gameSave(s) {
+  const res = await fetch(`${DB}/game/${today}/${encodeURIComponent(me)}.json?auth=${await idToken()}`, {method: 'PUT', body: JSON.stringify(s)}).catch(() => null);
+  if (res?.ok) await load();
+  return !!res?.ok;
+}
+let gameJs;
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-game]')) return;
+  (gameJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'game.js?v=3'; s.onload = ok; s.onerror = () => { gameJs = null; no(); }; document.head.append(s); }))
+    .then(() => karych({paper: () => paper, boss: () => bossOf(bs, today), me: () => members.includes(me) ? me : '', week: gameWeek, submit: gameSave}),
+      () => alert('Игра не загрузилась — проверь интернет'));
+});
 document.addEventListener('click', e => {
   const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump],button[data-price],button[data-ok],button[data-undo],button[data-sub],button[data-sub-ok],button[data-sub-no],button[data-bsub],button[data-bsub-ok],button[data-bsub-no]');
   if (!b) return;
