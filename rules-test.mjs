@@ -34,4 +34,7 @@ await t('рекорд больше прежнего', true, 'Карим', 'PUT',
 await t('рекорд за другого', false, 'Миша', 'PUT', 'game/10/Карим', 999);
 await t('дробный рекорд', false, 'Миша', 'PUT', 'game/10/Миша', 1.5);
 await t('удалить свой рекорд', false, 'Карим', 'DELETE', 'game/10/Карим');
+await req('admin', 'PUT', 'requests/r1', {kind: 'fix', text: 'x', by: 'Миша', ts: 1, done: {by: 'Карим', ts: 2}});
+await t('цена заявке, которую сделал сам', false, 'Карим', 'PUT', 'requests/r1/price/Карим', 5);
+await t('цена чужой сделанной заявке', true, 'Паша', 'PUT', 'requests/r1/price/Паша', 3);
 console.log(bad ? `ПРОВАЛЕНО: ${bad}` : 'все проверки прошли'); process.exit(bad ? 1 : 0);

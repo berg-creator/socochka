@@ -320,12 +320,12 @@ function render() {
   const rank = people.map(p => {
     // оценка — за каждый объект, который p убирал (свой по очереди или по обмену)
     const s = Object.keys(marks).flatMap(n => slots(subs, +n, p).map(q => avg(marks[n]?.[q]))).filter(x => x !== undefined), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
-    const l = lates(p).length + owes(p).length, b = nb(p).length, q = requests.filter(r => !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0);
-    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g + q - l * LATE - b * NOBUY, s.length, t, l, b, g, q];
-  }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждую просроченную уборку − NOBUY за бумагу
+    const l = lates(p).length + owes(p).length, b = nb(p).length, q = requests.filter(r => !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0), f = penalty(p);
+    return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g + q - l * LATE - b * NOBUY - f, s.length, t, l, b, g, q, f];
+  }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждую просроченную уборку − NOBUY за бумагу − штрафы (PENALTIES)
   // просроченные объекты p: [неделя, чей объект] — за свой и за тот, что взял по обмену
   function lates(p) { return Array.from({length: v.n + 1}, (_, n) => slots(subs, n, p).filter(q => late(cleaned, accepted, q, n)).map(q => [n, q])).flat(); }
-  const extra = (t, l, b, g, q) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
+  const extra = (t, l, b, g, q, f) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '') + (f ? ` · ⚖️ −${f}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
     ...Object.entries(marks).flatMap(([n, m]) => slots(subs, +n, p).filter(q => avg(m?.[q])).map(q => { const k = Object.keys(m[q]); return [START + n * WEEK, '⭐', `Оценка ${k.length > 1 ? 'участников' : 'старосты'} ${esc(k.join(', '))}, неделя с ${since(n)}${q !== p ? ` (объект за ${vin(q)})` : ''}`, +avg(m[q]).toFixed(1) + ' ★']; })),
@@ -334,12 +334,13 @@ function render() {
     ...owes(p).map(([n, r]) => [due(n), '📛', `Не сдал штрафную заявку «${esc(r.text)}» к итогам ${fmt(due(n))}`, '−' + LATE]),
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${since(n)}`, '−' + NOBUY]),
     ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED]),
-    ...requests.filter(r => reqPts(r, p) && !debt(all, r)).map(r => [r.ok, '🔧', `Заявка: ${esc(r.text)}, приняли ${stamp(r.ok)}`, '+' + reqPts(r, p)])
+    ...requests.filter(r => reqPts(r, p) && !debt(all, r)).map(r => [r.ok, '🔧', `Заявка: ${esc(r.text)}, приняли ${stamp(r.ok)}`, '+' + reqPts(r, p)]),
+    ...PENALTIES.filter(x => x[0] === p).map(([, at, n, why]) => [at, '⚖️', `Штраф: ${esc(why)}`, '−' + n])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
-    + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела + заявки − просрочки</div>';
+    + '<div class="rev muted small">Балл = средняя оценка за уборку + мусор + добрые дела + заявки − просрочки и штрафы</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
-  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g, q], i) =>
-    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}${lead?.[0] === p ? ' <span title="Почтальон недели — рекорд мини-игры">📬</span>' : ''}</div><div class="muted">оценок: ${n}${extra(t, l, b, g, q)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
+  $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g, q, f], i) =>
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}${lead?.[0] === p ? ' <span title="Почтальон недели — рекорд мини-игры">📬</span>' : ''}</div><div class="muted">оценок: ${n}${extra(t, l, b, g, q, f)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q || f ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
@@ -380,13 +381,13 @@ function render() {
 
   // заявка: цену голосуют все до приёма; сделавший сдаёт старосте, а сдачу самого старосты принимает любой другой участник
   const reqRow = r => {
-    const pr = avg(r.price), d = r.done, id = esc(r.id), dv = all.find(x => x.req === r), judge = d && !r.ok && (d.by === nowBoss ? me !== d.by && members.includes(me) : me === nowBoss);
+    const pr = reqPrice(r), d = r.done, id = esc(r.id), dv = all.find(x => x.req === r), judge = d && !r.ok && (d.by === nowBoss ? me !== d.by && members.includes(me) : me === nowBoss);
     const how = r.ok ? `✓ ${esc(d.by)}, принято ${short(new Date(r.ok))}${debt(all, r) ? ' · штраф, без баллов' : reqPts(r, d.by) ? ` · +${reqPts(r, d.by)}` : ''}`
       : d ? `⏳ ${esc(d.by)} сделал${debt(all, r) ? ' (штраф)' : ''}, ${stamp(d.ts)} — принимает ${d.by === nowBoss ? 'любой, кроме старосты' : '👑 ' + nowBoss}${judge ? ` <button data-ok="${id}">✓ Принять</button>` : ''}${judge || d.by === me ? ` <button data-undo="${id}">✕ ${judge ? 'Не принято' : 'Отменить'}</button>` : ''}`
       : `<button data-done="${id}">✋ Сделал — сдать старосте</button>`;
     return `<div class="row${r.ok ? ' done' : ''}"><div class="head"><span class="icon">${kinds[r.kind] || '📝'}</span><div class="grow"><div>${esc(r.text)}</div><div class="muted small">${esc(r.by)}, ${short(new Date(r.ts))}${dv ? ` · 👎 делает ${esc(dv.who.join(' и '))}` : ''}</div></div>${r.by === me && !d ? `<button class="del" data-edit="requests" data-id="${id}" title="Изменить">✏️</button>` : ''}${r.by === me && !r.ok ? `<button class="del" data-del="requests" data-id="${id}" title="Удалить">🗑</button>` : ''}</div>`
-      + `<div class="rev"><span class="muted small">Цена: </span><b>${pr ? +pr.toFixed(1) + ' ' + plural(pr % 1 ? 2 : pr, ['балл', 'балла', 'баллов']) : 'не оценена'}</b>${Object.keys(r.price).length ? ' <span class="muted small">' + Object.entries(r.price).map(([k, n]) => `${esc(k)} ${n}`).join(', ') + '</span>' : ''}</div>`
-      + (r.ok || !members.includes(me) ? '' : `<div class="rev"><span class="muted small">Твоя цена </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-price="${n}" data-id="${id}" aria-label="${n} из 5">${n <= r.price[me] ? '★' : '☆'}</button>`).join('')}</div>`)
+      + `<div class="rev"><span class="muted small">Цена: </span><b>${pr ? +pr.toFixed(1) + ' ' + plural(pr % 1 ? 2 : pr, ['балл', 'балла', 'баллов']) : 'не оценена'}</b>${Object.keys(r.price).length ? ' <span class="muted small">' + Object.entries(r.price).map(([k, n]) => k === d?.by ? `<s title="Сделавший себе цену не ставит">${esc(k)} ${n}</s>` : `${esc(k)} ${n}`).join(', ') + '</span>' : ''}</div>`
+      + (r.ok || !members.includes(me) || d?.by === me ? '' : `<div class="rev"><span class="muted small">Твоя цена </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-price="${n}" data-id="${id}" aria-label="${n} из 5">${n <= r.price[me] ? '★' : '☆'}</button>`).join('')}</div>`)
       + `<div class="rev">${how}</div></div>`;
   };
   const done = requests.filter(r => r.ok).sort((a, b) => b.ok - a.ok);

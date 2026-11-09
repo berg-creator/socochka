@@ -85,13 +85,18 @@ function deedAt(d) {
 // бумага: когда стало «мало» (≤2), страница пишет paper.low, покупка переносит его в buys[].low. Староста недели n не купил
 // за сутки с момента «мало» (или с начала своей недели, если мало стало раньше) — минус NOBUY баллов ему в эту неделю
 const NOBUY = 1, DAY = 864e5;
+// штрафы вручную: [кто, когда, баллов, за что] — вычитаются в неделю, на которую приходится «когда», и в рейтинге за всё время
+const PENALTIES = [['Карим', Date.UTC(2026, 10, 9, 12), 1.5, 'сам назначил цену своей заявке']];
+const penalty = (p, n) => PENALTIES.filter(x => x[0] === p && (n === undefined || Math.floor((x[1] - START) / WEEK) === n)).reduce((a, x) => a + x[2], 0);
 const lows = (paper, buys) => [...buys.filter(b => b.low).map(b => [b.low, b.ts]), ...(paper?.low ? [[paper.low, Infinity]] : [])];
 const nobuy = (lows, n, now = Date.now()) => lows.some(([a, b]) => Math.min(b, now, START + (n + 1) * WEEK) - Math.max(a, START + n * WEEK) > DAY);
 // заявка: цену голосуют все участники, price[кто] — 1..5, цена — среднее голосов (без голосов — 0). Сделавший (done) сдаёт старосте,
 // тот принимает (ok) — баллы в неделю приёма. Штрафную заявку должник делает без баллов: debt — её сдал тот, на ком долг (all — verdicts)
-const reqPts = (r, p) => r.ok && r.done?.by === p ? Math.round((avg(r.price) || 0) * 10) / 10 : 0;
+// Голос того, кто сделал заявку, в цене не считается — себе цену не назначают (09.11.2026 Карим поставил своей заявке 5 при чужих 1 и 1)
+const reqPrice = r => avg(Object.fromEntries(Object.entries(r.price || {}).filter(([k]) => k !== r.done?.by)));
+const reqPts = (r, p) => r.ok && r.done?.by === p ? Math.round((reqPrice(r) || 0) * 10) / 10 : 0;
 const debt = (all, r) => all.some(v => v.req === r && v.who.includes(r.done?.by));
-// итоги недели n — в её конце, в среду 00:00 МСК: худший балл за неделю (weekMark — средняя оценка за объекты, которые убирал, с учётом обменов + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждый просроченный объект − NOBUY старосте (bossOf) за бумагу)
+// итоги недели n — в её конце, в среду 00:00 МСК: худший балл за неделю (weekMark — средняя оценка за объекты, которые убирал, с учётом обменов + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждый просроченный объект − NOBUY старосте (bossOf) за бумагу − PENALTIES)
 // выполняет самую старую заявку, открытую на тот момент и не занятую прошлыми долгами; сделал её кто-то другой — долг переходит на следующую.
 // Долг сдают до итогов следующей недели; не сдан — минус LATE в каждую неделю, на конце которой он ещё висит, и долг остаётся. Без оценки и просрочки — не участвует, ничья — делают вместе.
 // Комментарии на балл не влияют; оценку после среды страница менять не даёт, чтобы итог не менялся задним числом
@@ -107,8 +112,8 @@ function verdicts(marks, requests, trashOut, cleaned, accepted, lw = [], deeds =
       const t = trashCap(trashOut).filter(o => Math.floor((o.ts - START) / WEEK) === n).reduce((a, o) => a + trashPts(o, p) * (o.ts < due(0) ? 2 : 1), 0), l = slots(subs, n, p).filter(q => late(cleaned, accepted, q, n)).length;
       const g = deeds.filter(d => d.by === p && Math.floor((deedAt(d) - START) / WEEK) === n).length * DEED;
       const q = requests.filter(r => Math.floor((r.ok - START) / WEEK) === n && !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0);
-      const o = fines.filter(f => f[0] === p).length;
-      return s || l || b || o ? [[p, Math.round(((s || 0) + t + g + q - (l + o) * LATE - b * NOBUY) * 100) / 100]] : [];
+      const o = fines.filter(f => f[0] === p).length, f = penalty(p, n);
+      return s || l || b || o || f ? [[p, Math.round(((s || 0) + t + g + q - (l + o) * LATE - b * NOBUY - f) * 100) / 100]] : [];
     });
     const min = Math.min(...score.map(x => x[1])), who = score.filter(x => x[1] === min).map(x => x[0]);
     all.push({n, min, who, fines, req: who.length ? requests.filter(r => r.ts < at && !all.some(v => v.req === r) && (!r.done || r.done.ts >= at && who.includes(r.done.by))).sort((a, b) => a.ts - b.ts)[0] : undefined});
@@ -116,4 +121,4 @@ function verdicts(marks, requests, trashOut, cleaned, accepted, lw = [], deeds =
   return all;
 }
 const verdict = (...a) => verdicts(...a).at(-1) || {n: -1, min: Infinity, who: [], fines: []};
-if (typeof module === 'object') module.exports = {people, bosses, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, weekMark, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPts, debt, lows, nobuy, paid, verdicts, verdict};
+if (typeof module === 'object') module.exports = {people, bosses, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, weekMark, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPrice, reqPts, debt, PENALTIES, penalty, lows, nobuy, paid, verdicts, verdict};

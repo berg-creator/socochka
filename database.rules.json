@@ -117,7 +117,7 @@
         },
         "price": {
           "$name": {
-            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name && !data.parent().parent().child('ok').exists()",
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name && $name !== data.parent().parent().child('done').child('by').val() && !data.parent().parent().child('ok').exists()",
             ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 5 && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
           }
         }
