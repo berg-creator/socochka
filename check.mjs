@@ -13,7 +13,7 @@ const ch = spawn(chrome, ['--headless=new', '--no-sandbox', '--disable-gpu', '--
 const sleep = t => new Promise(r => setTimeout(r, t));
 const errors = [];
 function done(msg) {
-  ch.kill(); rmSync(dir, {recursive: true, force: true});
+  ch.kill(); rmSync(dir, {recursive: true, force: true, maxRetries: 5, retryDelay: 200});
   if (msg) console.error('check: ' + msg + '. Открой index.html в браузере и посмотри консоль');
   process.exit(msg ? 1 : 0);
 }
