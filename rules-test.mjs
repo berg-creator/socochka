@@ -1,0 +1,31 @@
+// Тест правил базы (database.rules.json) в локальном эмуляторе — живую базу не трогает. Запуск: ./rules.sh test
+// Токен — через ?auth=: в заголовке Authorization эмулятор считает неподписанный токен администраторским и пропускает всё
+const B = 'http://127.0.0.1:9000', NS = '?ns=demo-socochka-default-rtdb';
+const jwt = email => ['{"alg":"none","typ":"JWT"}', JSON.stringify({sub: email, email, iat: 1, exp: 9e9, aud: 'demo-socochka', iss: 'x', user_id: email, firebase: {sign_in_provider: 'password'}}), ''].map(s => Buffer.from(s).toString('base64url')).join('.');
+const as = {Миша: 'misha', Паша: 'pasha', Максим: 'max', Карим: 'karim'};
+const req = (who, method, path, body) => fetch(`${B}/${path}.json${NS}` + (who === 'admin' ? '' : '&auth=' + jwt(as[who] + '@socochka.app')), {method, headers: who === 'admin' ? {Authorization: 'Bearer owner'} : {}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.ok);
+let bad = 0;
+const t = async (name, want, ...a) => { const got = await req(...a); if (got !== want) bad++; console.log(got === want ? 'OK  ' : 'FAIL', want ? 'можно ' : 'нельзя', name); };
+await req('admin', 'PUT', 'logins', {misha: 'Миша', pasha: 'Паша', max: 'Максим', karim: 'Карим'});
+await t('владелец просит обмен', true, 'Миша', 'PUT', 'subs/10/Миша', {to: 'Паша', ts: 1});
+await t('просить сразу с ok (без back)', false, 'Миша', 'PUT', 'subs/20/Миша', {to: 'Паша', ts: 1, ok: 1});
+await t('просить за чужой объект', false, 'Карим', 'PUT', 'subs/21/Миша', {to: 'Паша', ts: 1});
+await t('согласиться за другого (не тот, кого просят)', false, 'Карим', 'PUT', 'subs/10/Миша/ok', 5);
+await t('согласиться тому, кого просят', true, 'Паша', 'PUT', 'subs/10/Миша/ok', 5);
+await t('запись отработки на след. неделю', true, 'Паша', 'PUT', 'subs/11/Паша', {to: 'Миша', ts: 5, ok: 5, back: 10});
+await t('отменить после согласия', false, 'Миша', 'DELETE', 'subs/10/Миша');
+await t('заместитель отмечает «убрал» чужой объект', true, 'Паша', 'PUT', 'cleaned/10/Миша', 7);
+await t('владелец отмечает свой отданный объект', false, 'Миша', 'PUT', 'cleaned/10/Миша', 7);
+await t('обычное «убрал» своего объекта', true, 'Карим', 'PUT', 'cleaned/10/Карим', 7);
+await t('заместитель ставит звёзды объекту, который убирал', false, 'Паша', 'PUT', 'marks/10/Миша/Паша', 5);
+await t('владелец оценивает свой объект, убранный другим', true, 'Миша', 'PUT', 'marks/10/Миша/Миша', 4);
+await t('оценка себе за свой объект', false, 'Карим', 'PUT', 'marks/10/Карим/Карим', 5);
+await t('староста просит обмен', true, 'Карим', 'PUT', 'bossSubs/10', {from: 'Карим', to: 'Паша', ts: 1});
+await t('просить от чужого имени', false, 'Миша', 'PUT', 'bossSubs/12', {from: 'Карим', to: 'Паша', ts: 1});
+await t('согласиться за другого', false, 'Миша', 'PUT', 'bossSubs/10/ok', 5);
+await t('согласиться тому, кого просят', true, 'Паша', 'PUT', 'bossSubs/10/ok', 5);
+await t('запись возврата недели старосты', true, 'Паша', 'PUT', 'bossSubs/13', {from: 'Паша', to: 'Карим', ts: 5, ok: 5, back: 10});
+await t('просьба к Кате (не убирает)', false, 'Максим', 'PUT', 'subs/10/Максим', {to: 'Катя', ts: 1});
+await req('Максим', 'PUT', 'subs/10/Максим', {to: 'Карим', ts: 1});
+await t('отказаться от просьбы (тот, кого просят)', true, 'Карим', 'DELETE', 'subs/10/Максим');
+console.log(bad ? `ПРОВАЛЕНО: ${bad}` : 'все проверки прошли'); process.exit(bad ? 1 : 0);
