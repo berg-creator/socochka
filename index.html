@@ -607,7 +607,7 @@ async function gameSave(s) {
 let gameJs;
 document.addEventListener('click', e => {
   if (!e.target.closest('[data-game]')) return;
-  (gameJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'game.js?v=5'; s.onload = ok; s.onerror = () => { gameJs = null; no(); }; document.head.append(s); }))
+  (gameJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'game.js?v=6'; s.onload = ok; s.onerror = () => { gameJs = null; no(); }; document.head.append(s); }))
     .then(() => karych({paper: () => paper, boss: () => bossOf(bs, today), me: () => members.includes(me) ? me : '', week: gameWeek, submit: gameSave}),
       () => alert('Игра не загрузилась — проверь интернет'));
 });

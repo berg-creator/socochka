@@ -293,12 +293,12 @@ function game(L, {paper, boss, me, week, submit}) {
   let st = 'intro', paused = false, best = +load('karychBest') || 0, last = 0, raf;
   let who = CHASERS[load('karychWho')] ? load('karychWho') : 'baba', CH = CHASERS[who];
   let t, dist, ents, nextRow, nextBox, lane, px, gx, jump, duck, sleep, doze, bed, beds, letters, rolls, pts, sent, gap, slow, cont, toasts, flies, queue;
-  let back, cramp, streak, smokeAt, slip, slipT, kingT, rage, calm, shake, hurt, sparks;
+  let back, cramp, streak, smokeAt, slip, slipT, kingT, rage, calm, shake, hurt, sparks, pillowT, pillowN;
   let tut = -1, tutE, tutOk, hint, slo = 1, recT, land = 0, seen = load('karychSeen'), learn = false;
   function reset() {
     t = dist = jump = duck = sleep = doze = bed = beds = rolls = pts = sent = slow = back = cramp = streak = smokeAt = rage = calm = 0;
     ents = []; toasts = []; flies = []; queue = []; nextRow = 28; nextBox = 14; lane = px = gx = 0;
-    shake = hurt = 0; sparks = [];
+    shake = hurt = 0; sparks = []; pillowT = 25; pillowN = 0;
     letters = 8; gap = .55; slip = null; slipT = 12; kingT = 15; cont = false;
     tut = learn || !load('karychTut') ? 0 : -1; tutE = null; hint = null; slo = 1; recT = false;
     if (tut === 0) gap = 1;
@@ -319,7 +319,14 @@ function game(L, {paper, boss, me, week, submit}) {
       const calm = t < 20, free = [...LANES].sort(() => Math.random() - .5);
       if (Math.random() < (calm ? .55 : .8))
         for (const l of free.splice(0, !calm && Math.random() < .45 ? 2 : 1)) ents.push({k: pick(['wall', 'low', 'low', 'line', 'line']), lane: l, at: nextRow});
-      if (Math.random() < .35) { const r = Math.random(); ents.push({k: r < .35 ? 'bag' : r < .52 ? 'roll' : r < .64 ? 'pillow' : r < .88 ? 'cig' : 'lolly', lane: free[0], at: nextRow}); }
+      if (Math.random() < .35) {
+        const r = Math.random();
+        let k = r < .35 ? 'bag' : r < .52 ? 'roll' : r < .64 ? 'pillow' : r < .88 ? 'cig' : 'lolly';
+        // кровать — редкость: не раньше 25 с, потом не чаще раза в 30–45 с, и каждая следующая — ещё на 8 с позже (до +40).
+        // Иначе на скорости за 7 с сна собирается новая подушка, и забег не кончается
+        if (k === 'pillow') { if (t < pillowT || beds >= 2) k = 'lolly'; else pillowT = t + rnd(30, 45) + 8 * Math.min(5, pillowN++); }
+        ents.push({k, lane: free[0], at: nextRow});
+      }
       nextRow += rnd(7, 11) * (calm ? 1.4 : 1);
     }
     while (nextBox < dist + FAR) { ents.push({k: 'box', side: pick([-1, 1]), reg: Math.random() < .15, at: nextBox}); nextBox += rnd(9, 16); }
@@ -453,7 +460,8 @@ function game(L, {paper, boss, me, week, submit}) {
       if (e.passed || e.at - dist > .3) continue;
       e.passed = true;
       if (e.k === 'cig') { bed <= 0 && e.lane === l && y < .5 ? take(e) : avoid(); continue; }
-      if (e.k in ITEMS) { if (bed > 0 || e.lane === l) take(e); continue; } // во сне собирает со всех полос
+      // во сне собирает со всех полос — кроме подушки: её только наяву и только на своей полосе
+      if (e.k in ITEMS) { if (e.k === 'pillow' ? bed <= 0 && e.lane === l : bed > 0 || e.lane === l) take(e); continue; }
       if (e.lane !== l || bed > 0) continue;
       if (e.k === 'wall') { e.gone = true; hit(.45, '💥 Врезался!', 'wall'); }
       else if (e.k === 'low' && y < .5) { e.gone = true; hit(.3, '📦 Споткнулся!', 'low'); }
