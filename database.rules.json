@@ -23,7 +23,7 @@
       "$week": {
         "$name": {
           "$by": {
-            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $by && $by !== $name",
+            ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $by && $by !== (root.child('subs').child($week).child($name).child('ok').exists() ? root.child('subs').child($week).child($name).child('to').val() : $name)",
             ".validate": "newData.isNumber() && newData.val() % 1 === 0 && newData.val() >= 1 && newData.val() <= 5 && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
           }
         }
@@ -32,7 +32,7 @@
     "cleaned": {
       "$week": {
         "$name": {
-          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name",
+          ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === (root.child('subs').child($week).child($name).child('ok').exists() ? root.child('subs').child($week).child($name).child('to').val() : $name)",
           ".validate": "newData.isNumber() && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим')"
         }
       }
@@ -124,6 +124,28 @@
             ".write": "root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name",
             ".validate": "newData.val() === true && ($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим' || $name === 'Катя')"
           }
+        }
+      }
+    },
+    "subs": {
+      "$week": {
+        "$name": {
+          ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name && (!newData.child('ok').exists() || newData.child('back').exists()) : !newData.exists() && !data.child('ok').exists() && (root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === $name || root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('to').val())",
+          ".validate": "($name === 'Миша' || $name === 'Паша' || $name === 'Максим' || $name === 'Карим') && newData.child('to').isString() && newData.child('to').val() !== $name && (newData.child('to').val() === 'Миша' || newData.child('to').val() === 'Паша' || newData.child('to').val() === 'Максим' || newData.child('to').val() === 'Карим') && newData.child('ts').isNumber() && (!newData.child('back').exists() || newData.child('back').isNumber())",
+          "ok": {
+            ".write": "!data.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.parent().child('to').val()",
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+    "bossSubs": {
+      "$week": {
+        ".write": "!data.exists() ? root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === newData.child('from').val() && (!newData.child('ok').exists() || newData.child('back').exists()) : !newData.exists() && !data.child('ok').exists() && (root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('from').val() || root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.child('to').val())",
+        ".validate": "newData.child('from').isString() && newData.child('to').isString() && newData.child('to').val() !== newData.child('from').val() && (newData.child('to').val() === 'Миша' || newData.child('to').val() === 'Паша' || newData.child('to').val() === 'Максим' || newData.child('to').val() === 'Карим') && newData.child('ts').isNumber() && (!newData.child('back').exists() || newData.child('back').isNumber())",
+        "ok": {
+          ".write": "!data.exists() && root.child('logins').child(auth.token.email.replace('@socochka.app', '')).val() === data.parent().child('to').val()",
+          ".validate": "newData.isNumber()"
         }
       }
     }

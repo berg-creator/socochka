@@ -113,7 +113,7 @@ button{cursor:pointer}
 .dayinfo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:4px}
 .link{border:0;background:none;padding:4px 0;color:var(--gold);text-align:left}
 /* гость (не вошёл) — только смотрит: формы и кнопки действий скрыты, лайки видны, но не жмутся */
-.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed],[data-price],[data-ok],[data-undo]){display:none}
+.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed],[data-price],[data-ok],[data-undo],[data-sub],[data-sub-ok],[data-sub-no],[data-bsub],[data-bsub-ok],[data-bsub-no]){display:none}
 .guest [data-like]{pointer-events:none}
 </style>
 </head>
@@ -189,7 +189,7 @@ const kinds = {fix: '🔧', buy: '🛒'};
 
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
-let w = today, shownW, tab, reviews = [], marks = {}, cleaned = {}, accepted = {}, paper = null, trash = null, trashOut = [], buys = [], requests = [], events = [], deeds = [], note = 'Загрузка…';
+let w = today, shownW, tab, reviews = [], marks = {}, cleaned = {}, accepted = {}, subs = {}, bs = {}, paper = null, trash = null, trashOut = [], buys = [], requests = [], events = [], deeds = [], note = 'Загрузка…';
 let logins = {}, tok = {}; try { tok = JSON.parse(localStorage.tok) || {}; } catch {}
 let me = tok.name || '';
 let cal = new Date(), sel = '';
@@ -238,11 +238,36 @@ async function shrink(file) {
   return c.toDataURL('image/jpeg', 0.6);
 }
 
+// Перепоручение — обмен очередями (правила — в shared.js у fixSubs). Просить можно на эту или следующую неделю, пока не кончилась
+const canSwap = n => n >= today && n <= today + 1 && Date.now() < due(n);
+// q уже участвует в обмене объектом на неделе n или n+1 (в том числе ждёт ответа) — второй не начать
+const busy = (n, q) => [n, n + 1].some(k => Object.entries(subs[k] || {}).some(([o, s]) => o === q || s.to === q));
+// строка обмена под объектом p недели w
+function swap(p, obj) {
+  const x = subs[w]?.[p], o = esc(obj);
+  if (x?.ok) return `<div class="rev muted small">🤝 ${x.back !== undefined ? `Отработка: ${x.to} убирает за ${vin(p)} — тот убирал за него на прошлой неделе` : `${x.to} убирает за ${vin(p)}, взамен ${p} уберёт объект ${rod(x.to)} на следующей неделе`}</div>`;
+  if (x) return !canSwap(w) ? '' : `<div class="rev">⏳ ${p} просит ${vin(x.to)} убрать за него, взамен уберёт объект ${rod(x.to)} на следующей неделе`
+    + (me === x.to ? ` <button data-sub-ok="${p}" data-obj="${o}">✓ Согласен</button> <button data-sub-no="${p}">✕ Нет</button>` : me === p ? ` <button data-sub-no="${p}">Отменить</button>` : '') + '</div>';
+  if (p !== me || !canSwap(w) || cleaned[w]?.[p] || busy(w, me)) return '';
+  const can = people.filter(q => q !== me && !busy(w, q));
+  return can.length ? `<details class="rev"><summary>🤝 Попросить убрать за меня</summary><span class="muted small">Он уберёт два объекта сейчас, ты — два на следующей неделе (свой и его). Его звёзды — ему, не отработаешь — просрочка тебе.</span><div class="chips">${can.map(q => `<button data-sub="${q}" data-obj="${o}">${q}</button>`).join('')}</div></details>` : '';
+}
+// строка обмена старостой недели w
+function bossSwap() {
+  const x = bs[w];
+  if (x?.ok) return `<br><span class="muted small">🤝 ${x.back !== undefined ? `Обмен: ${x.to} вместо ${rod(x.from)}, тот был старостой за него с ${since(x.back)}` : `${x.to} вместо ${rod(x.from)}, взамен ${x.from} — староста недели с ${since(nextBoss(w, x.to))}`}</span>`;
+  if (x) return !canSwap(w) ? '' : `<br><span class="small">⏳ ${x.from} просит ${vin(x.to)} побыть старостой, взамен сам будет старостой с ${since(nextBoss(w, x.to))}</span>`
+    + (me === x.to ? ` <button data-bsub-ok="1">✓ Согласен</button> <button data-bsub-no="1">✕ Нет</button>` : me === x.from ? ` <button data-bsub-no="1">Отменить</button>` : '');
+  if (me !== bosses[mod(w)] || !canSwap(w)) return '';
+  const can = people.filter(q => q !== me && !bs[nextBoss(w, q)]);
+  return can.length ? `<details class="small"><summary>🤝 Передать старосту на эту неделю</summary><span class="muted">Взамен ты станешь старостой в его ближайшую неделю по очереди</span><div class="chips" style="justify-content:center">${can.map(q => `<button data-bsub="${q}">${q} — ты с ${since(nextBoss(w, q))}</button>`).join('')}</div></details>` : '';
+}
+
 function render() {
   $('me').textContent = me ? me + ' · выйти' : '👀 Гость · войти'; if (me) $('login').hidden = true; document.body.classList.toggle('guest', !me);
-  const tIso = iso(new Date()), nowBoss = bosses[mod(today)];
+  const tIso = iso(new Date()), nowBoss = bossOf(bs, today);
   const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.ok);
-  const lw = lows(paper, buys), all = verdicts(marks, requests, trashOut, cleaned, accepted, lw, deeds), v = all.at(-1) || {n: -1, who: []}, vw = v.who.join(' и '), vr = vw ? v.req : null;
+  const lw = lows(paper, buys), all = verdicts(marks, requests, trashOut, cleaned, accepted, lw, deeds, subs, bs), v = all.at(-1) || {n: -1, who: []}, vw = v.who.join(' и '), vr = vw ? v.req : null;
   const mine = all.filter(x => x.req && !x.req.done && x.who.includes(me)), fine = mine.length > 0, owes = p => all.flatMap(x => x.fines.filter(f => f[0] === p).map(f => [x.n, f[1]]));
   const [pc, pw] = lvl(paper?.rolls ?? 0);
 
@@ -258,13 +283,13 @@ function render() {
   const label = {[today]: 'Эта неделя', [today + 1]: 'Следующая неделя', [today - 1]: 'Прошлая неделя'}[w] || '&nbsp;';
   $('week').innerHTML = `<b>${label}</b>${since(w)} — ${fmt(START + w * WEEK + 6 * 864e5)}`;
   $('prev').disabled = w <= 0;
-  const boss = bosses[mod(w)];
-  $('boss').textContent = `👑 Староста: ${boss} — принимает объекты`;
+  const boss = bossOf(bs, w);
+  $('boss').innerHTML = `👑 Староста: ${boss} — принимает объекты` + bossSwap();
 
   // каждую неделю объекты сдвигаются вниз на одного человека
   // пока открыта форма комментария, живое обновление её не стирает; при закрытии список перерисуется
   if (w !== shownW || !$('list').querySelector('details[open]')) $('list').innerHTML = people.map((p, i) => {
-    const [icon, obj] = objects[mod(i - w)];
+    const [icon, obj] = objects[mod(i - w)], c = cleaner(subs, w, p); // c — кто убирает объект p на этой неделе (с учётом обмена)
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const done = cleaned[w]?.[p];
     const acc = accepted[w]?.[p];
@@ -272,33 +297,36 @@ function render() {
     const [sc, st] = off ? [] : state(acc, done), status = sc ? `<span class="end badge ${sc}">${st}</span>` : '';
     const revs = mine.map(comment).join('');
     // своё отмечают «убрал», принимает только староста; комментарии на статус и рейтинг не влияют
-    const act = acc || Date.now() < monday(w) ? '' : p === me && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
-    // звёзды ставит староста; его собственный объект оценивают все участники, кроме него, балл — среднее. с понедельника до итогов в среду
-    const m = marks[w]?.[p] || {}, mark = avg(m), k = Object.keys(m), judge = p === boss ? me !== p && members.includes(me) : me === boss;
+    const act = acc || Date.now() < monday(w) ? '' : c === me && Date.now() < due(w) && !done ? `<button data-cleaned="${esc(obj)}" data-slot="${p}">🧹 Убрал объект</button>` : me === boss ? `<button data-accept="${p}" data-obj="${esc(obj)}">✓ Принять объект</button>` : '';
+    // звёзды ставит староста; объект, который убирает он сам, оценивают все участники, кроме него, балл — среднее. с понедельника до итогов в среду
+    const m = marks[w]?.[p] || {}, mark = avg(m), k = Object.keys(m), judge = c === boss ? me !== c && members.includes(me) : me === boss;
     // у старосты — средняя и кто сколько поставил (по плашке на оценщика), у остальных — звёзды и кто ставил
-    const got = !mark ? '' : p === boss ? `<div class="rev"><span class="score">${stars(Math.round(mark))} ${mark.toFixed(1)}</span> <span class="muted small">средняя</span></div><div class="rev chips">${k.map(x => `<span class="chip">${esc(x)} <b>${m[x]} ★</b></span>`).join('')}</div>`
+    const got = !mark ? '' : c === boss ? `<div class="rev"><span class="score">${stars(Math.round(mark))} ${mark.toFixed(1)}</span> <span class="muted small">средняя</span></div><div class="rev chips">${k.map(x => `<span class="chip">${esc(x)} <b>${m[x]} ★</b></span>`).join('')}</div>`
       : `<div class="rev"><span class="score">${stars(Math.round(mark))}</span> <span class="muted">${k.length > 1 ? mark.toFixed(1) + ' ' : ''}— ${esc(k.join(', '))}</span></div>`;
-    const rate = off ? '' : judge && Date.now() < due(w) ? `<div class="rev"><span class="muted small">Твоя оценка </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= m[me] ? '★' : '☆'}</button>`).join('')}</div>${p === boss ? got : ''}`
+    const rate = off ? '' : judge && Date.now() < due(w) ? `<div class="rev"><span class="muted small">Твоя оценка </span>${[1, 2, 3, 4, 5].map(n => `<button class="del star" data-mark="${n}" data-who="${p}" aria-label="${n} из 5">${n <= m[me] ? '★' : '☆'}</button>`).join('')}</div>${c === boss ? got : ''}`
       : got;
-    const form = off ? '' : act + (p === me ? '' : `<details><summary>Комментировать</summary><form data-who="${p}">
+    const form = swap(p, obj) + (off ? '' : act + (p === me || c === me ? '' : `<details><summary>Комментировать</summary><form data-who="${p}">
       <textarea name="text" rows="3" maxlength="500" placeholder="Комментарий" required></textarea>
-      <button>Отправить</button></form></details>`);
-    return `<div class="row ${sc || ''}${p === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${p}${p === boss ? ' 👑' : ''}</div><div class="muted">${obj}</div></div>${status}</div>${rate}${revs}${form}</div>`;
+      <button>Отправить</button></form></details>`));
+    return `<div class="row ${sc || ''}${c === me ? ' mine' : ''}"><div class="head"><span class="icon">${icon}</span><div><div class="name">${c}${c === boss ? ' 👑' : ''}</div><div class="muted">${obj}${c !== p ? ` · 🤝 за ${vin(p)}` : ''}</div></div>${status}</div>${rate}${revs}${form}</div>`;
   }).join('');
   shownW = w;
 
-  const nb = p => Array.from({length: today + 1}, (_, n) => n).filter(n => bosses[mod(n)] === p && nobuy(lw, n)); // недели, где староста p не купил бумагу
+  const nb = p => Array.from({length: today + 1}, (_, n) => n).filter(n => bossOf(bs, n) === p && nobuy(lw, n)); // недели, где староста p не купил бумагу
   const rank = people.map(p => {
-    const s = Object.values(marks).map(m => avg(m?.[p])).filter(x => x !== undefined), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
-    const l = Array.from({length: v.n + 1}, (_, n) => late(cleaned, accepted, p, n)).filter(Boolean).length + owes(p).length, b = nb(p).length, q = requests.filter(r => !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0);
+    // оценка — за каждый объект, который p убирал (свой по очереди или по обмену)
+    const s = Object.keys(marks).flatMap(n => slots(subs, +n, p).map(q => avg(marks[n]?.[q]))).filter(x => x !== undefined), t = trashOut.reduce((a, o) => a + trashPts(o, p), 0), g = deeds.filter(d => d.at && d.by === p).length * DEED;
+    const l = lates(p).length + owes(p).length, b = nb(p).length, q = requests.filter(r => !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0);
     return [p, (s.length && s.reduce((a, b) => a + b) / s.length) + t + g + q - l * LATE - b * NOBUY, s.length, t, l, b, g, q];
   }).sort((a, b) => b[1] - a[1]); // средняя оценка за уборку + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждую просроченную уборку − NOBUY за бумагу
+  // просроченные объекты p: [неделя, чей объект] — за свой и за тот, что взял по обмену
+  function lates(p) { return Array.from({length: v.n + 1}, (_, n) => slots(subs, n, p).filter(q => late(cleaned, accepted, q, n)).map(q => [n, q])).flat(); }
   const extra = (t, l, b, g, q) => (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
-    ...Object.entries(marks).filter(([, m]) => avg(m?.[p])).map(([n, m]) => { const k = Object.keys(m[p]); return [START + n * WEEK, '⭐', `Оценка ${k.length > 1 ? 'участников' : 'старосты'} ${esc(k.join(', '))}, неделя с ${since(n)}`, +avg(m[p]).toFixed(1) + ' ★']; }),
+    ...Object.entries(marks).flatMap(([n, m]) => slots(subs, +n, p).filter(q => avg(m?.[q])).map(q => { const k = Object.keys(m[q]); return [START + n * WEEK, '⭐', `Оценка ${k.length > 1 ? 'участников' : 'старосты'} ${esc(k.join(', '))}, неделя с ${since(n)}${q !== p ? ` (объект за ${vin(q)})` : ''}`, +avg(m[q]).toFixed(1) + ' ★']; })),
     ...trashOut.filter(o => trashPts(o, p)).map(o => [o.ts, '🗑', `Вынес ${o.with ? 'вдвоём с ' + esc(o.by === p ? o.with : o.by) : 'один'}, ${stamp(o.ts)}`, '+' + trashPts(o, p)]),
-    ...Array.from({length: v.n + 1}, (_, n) => n).filter(n => late(cleaned, accepted, p, n)).map(n => [due(n), '⏰', `Просрочена уборка, неделя с ${since(n)}`, '−' + LATE]),
+    ...lates(p).map(([n, q]) => [due(n), '⏰', `Просрочена уборка${q !== p ? ` (объект за ${vin(q)})` : ''}, неделя с ${since(n)}`, '−' + LATE]),
     ...owes(p).map(([n, r]) => [due(n), '📛', `Не сдал штрафную заявку «${esc(r.text)}» к итогам ${fmt(due(n))}`, '−' + LATE]),
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${since(n)}`, '−' + NOBUY]),
     ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED]),
@@ -330,10 +358,12 @@ function render() {
   const owe = people.includes(me) ? buys.filter(b => b.by !== me && !b.paid[me]) : [];
   const mineBuys = buys.filter(b => b.by === me && people.some(p => p !== me && !b.paid[p]));
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.some(b => !b.claim[me]) || fine);
-  const i = people.indexOf(me), [oi, on] = objects[mod(i - today)] || [];
+  // мои объекты на этой неделе: по очереди и по обмену (0, 1 или 2)
+  const i = people.indexOf(me), myObj = slots(subs, today, me).map(q => [q, ...objects[mod(people.indexOf(q) - today)]]);
   const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg, rq] = rank[ri] || [], has = rn || rt || rl || rb || rg || rq, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
-  const [sc, st] = Date.now() < monday(today) ? ['', ''] : state(accepted[today]?.[me], cleaned[today]?.[me]), ho = $('my').querySelector('[data-k="hist"]')?.open;
-  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2><a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div></div>${st && `<span class="end badge ${sc}">${st}</span>`}</a>`
+  const objRow = ([q, oi, on]) => { const [sc, st] = Date.now() < monday(today) ? ['', ''] : state(accepted[today]?.[q], cleaned[today]?.[q]);
+    return `<a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div>${q !== me ? `<div class="muted small">🤝 за ${vin(q)}</div>` : ''}</div>${st && `<span class="end badge ${sc}">${st}</span>`}</a>`; }, ho = $('my').querySelector('[data-k="hist"]')?.open;
+  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2>${myObj.map(objRow).join('') || `<p class="muted">Свободен — твой объект убирает ${cleaner(subs, today, me)} по обмену</p>`}`
       + (fine ? '<h2>Штрафные заявки</h2>' + mine.map(x => `<a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(x.req.text)}</div><div class="muted small">худший рейтинг, неделя с ${since(x.n)} · ${Date.now() < due(x.n + 1) ? `сдай до ${fmt(due(x.n + 1))} 00:00, иначе −${LATE}` : `просрочено: −${LATE} каждую среду, пока не сдашь`}</div></div></a>`).join('') : '')
       + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">оценок: ${rn}${extra(rt, rl, rb, rg, rq)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
       + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`
@@ -460,6 +490,7 @@ async function load() {
     marks = data.marks || {};
     cleaned = data.cleaned || {};
     accepted = data.accepted || {};
+    subs = fixSubs(data.subs); bs = fixBoss(data.bossSubs); // обмены объектами и старостой (shared.js)
     paper = Number.isInteger(data.paper?.rolls) ? data.paper : null;
     trash = typeof data.trash?.full === 'boolean' ? data.trash : null;
     trashOut = trashCap(Object.values(data.trashOut || {}).filter(o => typeof o?.by === 'string' && typeof o.ts === 'number'));
@@ -559,7 +590,7 @@ $('evForm').onsubmit = async e => {
 };
 
 document.addEventListener('click', e => {
-  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump],button[data-price],button[data-ok],button[data-undo]');
+  const b = e.target.closest('button[data-paper],button[data-trash],button[data-buy],button[data-paid],button[data-claim],button[data-unclaim],button[data-done],button[data-vote],button[data-day],button[data-month],button[data-propose],button[data-del],button[data-edit],button[data-cleaned],button[data-accept],button[data-mark],button[data-like],button[data-reply],button[data-deed],button[data-jump],button[data-price],button[data-ok],button[data-undo],button[data-sub],button[data-sub-ok],button[data-sub-no],button[data-bsub],button[data-bsub-ok],button[data-bsub-no]');
   if (!b) return;
   const x = b.dataset;
   if (x.jump) return $(x.jump).scrollIntoView({behavior: 'smooth'});
@@ -580,7 +611,7 @@ document.addEventListener('click', e => {
   if (x.paper) {
     const n = Math.max(0, paper.rolls + +x.paper), was = paper.rolls, ts = Date.now();
     send('paper', 'PUT', {rolls: n, by: me, ts, low: n <= 2 ? paper.low || ts : undefined}, b)
-      .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bosses[mod(today)]}, пора купить`, 'home'));
+      .then(ok => ok && n <= 2 && n < was && notify(`🧻 Осталось ${n} ${plural(n, ['рулон', 'рулона', 'рулонов'])} бумаги. ${bossOf(bs, today)}, пора купить`, 'home'));
   }
   if (x.trash === 'full') send('trash', 'PUT', {full: true, by: me, ts: Date.now()}, b).then(ok => ok && notify(`🗑 Мусорка переполнена — кто вынесет? Отметил ${me}`, 'home'));
   // ponytail: «вынес» только после «переполнена» — +1 за бак; кто нажал, на доверии, как и всё без входа
@@ -588,13 +619,23 @@ document.addEventListener('click', e => {
     // сверх TRASH в сутки баллы и так не идут (trashCap в shared.js) — тут только предупреждаем
     if (!trashCap([...trashOut, o]).includes(o)) return alert(`${o.with ? 'Ты или ' + o.with : 'Ты'} уже выносил мусор ${TRASH} раза сегодня — следующий вынос засчитается завтра`);
     send('', 'PATCH', {trash: {full: false, ...o}, ['trashOut/' + ts]: o}, b); }
-  if (x.cleaned) send(`cleaned/${w}/${me}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bosses[mod(w)]}, прими объект`, 'clean'));
+  if (x.cleaned) send(`cleaned/${w}/${x.slot}`, 'PUT', Date.now(), b).then(ok => ok && notify(`🧹 ${me} убрал: ${x.cleaned}. ${bossOf(bs, w)}, прими объект`, 'clean'));
+  // обмен объектом: попросить → согласиться (и сразу запись отработки на следующую неделю) / отказаться / отменить
+  if (x.sub) send(`subs/${w}/${me}`, 'PUT', {to: x.sub, ts: Date.now()}, b).then(ok => ok && notify(`🤝 ${me} просит ${vin(x.sub)}: убери за меня «${x.obj}» на неделе с ${since(w)}, а я уберу твой объект на следующей`, 'clean'));
+  if (x.subOk) { if (Object.values(subs[w + 1] || {}).some(s => s.to === me) || subs[w + 1]?.[me]) return alert('На следующей неделе у тебя уже есть обмен — сначала он');
+    const ts = Date.now(); send('', 'PATCH', {[`subs/${w}/${x.subOk}/ok`]: ts, [`subs/${w + 1}/${me}`]: {to: x.subOk, ts, ok: ts, back: w}}, b).then(ok => ok && notify(`🤝 ${me} согласился: убирает «${x.obj}» за ${vin(x.subOk)}, а ${x.subOk} на следующей неделе уберёт объект ${rod(me)}`, 'clean')); }
+  if (x.subNo) send(`subs/${w}/${x.subNo}`, 'DELETE', undefined, b);
+  // обмен старостой: неделя w уходит x.bsub, взамен просивший — староста ближайшей недели x.bsub по очереди
+  if (x.bsub) send(`bossSubs/${w}`, 'PUT', {from: me, to: x.bsub, ts: Date.now()}, b).then(ok => ok && notify(`👑 ${me} просит ${vin(x.bsub)} побыть старостой на неделе с ${since(w)}, а сам будет старостой с ${since(nextBoss(w, x.bsub))}`, 'clean'));
+  if (x.bsubOk) { const m = nextBoss(w, me); if (bs[m]) return alert('На твою неделю старосты уже есть обмен');
+    const ts = Date.now(); send('', 'PATCH', {[`bossSubs/${w}/ok`]: ts, [`bossSubs/${m}`]: {from: me, to: bs[w].from, ts, ok: ts, back: w}}, b).then(ok => ok && notify(`👑 ${me} — староста на неделе с ${since(w)} вместо ${rod(bs[w].from)}, а ${bs[w].from} — с ${since(m)}`, 'clean')); }
+  if (x.bsubNo) send(`bossSubs/${w}`, 'DELETE', undefined, b);
   if (x.accept) send(`accepted/${w}/${x.accept}`, 'PUT', Date.now(), b).then(ok => ok && notify(`✅ ${me} принял объект: ${x.obj} — ${x.accept}`, 'clean'));
   if (x.mark) send(`marks/${w}/${x.who}/${me}`, 'PUT', +x.mark, b);
   if (x.like) { const on = b.classList.contains('on'); send(`reviews/${encodeURIComponent(x.like)}/likes/${me}`, on ? 'DELETE' : 'PUT', on ? undefined : true, b); }
   if (x.reply) { const t = prompt('Ответ')?.trim().slice(0, 500); if (t) send(`reviews/${encodeURIComponent(x.reply)}/replies`, 'POST', {by: me, text: t, ts: Date.now()}, b); }
   if (x.price) send(`requests/${encodeURIComponent(x.id)}/price/${me}`, 'PUT', +x.price, b);
-  if (x.done) { const r = requests.find(r => r.id === x.done), boss = bosses[mod(today)];
+  if (x.done) { const r = requests.find(r => r.id === x.done), boss = bossOf(bs, today);
     send(`requests/${encodeURIComponent(x.done)}/done`, 'PUT', {by: me, ts: Date.now()}, b)
       .then(ok => ok && notify(`✋ ${me} сделал заявку: ${r.text}. ${me === boss ? 'Прими, кто-нибудь кроме старосты' : boss + ', прими'}`, 'home')); }
   if (x.ok) send(`requests/${encodeURIComponent(x.ok)}/ok`, 'PUT', Date.now(), b);
