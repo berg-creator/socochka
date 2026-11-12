@@ -67,8 +67,13 @@ function fixBoss(raw) {
 const cleaner = (subs, n, p) => subs?.[n]?.[p]?.ok ? subs[n][p].to : p;
 const slots = (subs, n, p) => people.filter(q => cleaner(subs, n, q) === p);
 const bossOf = (bs, n) => bs?.[n]?.ok ? bs[n].to : bosses[n % 4];
-// оценка p за неделю n — средняя по объектам, которые он убирал (их может быть 0, 1 или 2)
-const weekMark = (marks, subs, n, p) => { const v = slots(subs, n, p).map(q => avg(marks[n]?.[q])).filter(x => x !== undefined); return v.length ? v.reduce((a, b) => a + b) / v.length : undefined; };
+// оценка объекта владельца q за неделю n — среднее звёзд. Объект, который убирал староста, оценивают участники:
+// никто не оценил до итогов, а объект сдан в срок — 5 (раньше староста без оценок оставался без звёзд за неделю)
+const objMark = (marks, subs, bs, cleaned, accepted, n, q, now = Date.now()) =>
+  avg(marks[n]?.[q]) ?? (cleaner(subs, n, q) === bossOf(bs, n) && now >= due(n) && !late(cleaned, accepted, q, n) ? 5 : undefined);
+// звёзды p за неделю n — оценка за каждый объект, который он убирал (0, 1 или 2). В рейтинг и в балл недели идёт их сумма:
+// сколько звёзд получил за уборку, столько и прибавилось
+const weekMarks = (marks, subs, bs, cleaned, accepted, n, p, now) => slots(subs, n, p).map(q => objMark(marks, subs, bs, cleaned, accepted, n, q, now)).filter(x => x !== undefined);
 // доброе дело: голос — время нажатия, «за» положительное, «против» — со знаком минус. Что раньше набрало два голоса,
 // то и решило: два «за» — засчитано с момента второго, два «против» — отклонено (undefined). Иначе через сутки засчитывается
 // само, голоса после этого не в счёт. Дела, отправленные до первых итогов (due(0)), сами не засчитываются — только двумя «за»
@@ -96,29 +101,32 @@ const nobuy = (lows, n, now = Date.now()) => lows.some(([a, b]) => Math.min(b, n
 const reqPrice = r => avg(Object.fromEntries(Object.entries(r.price || {}).filter(([k]) => k !== r.done?.by)));
 const reqPts = (r, p) => r.ok && r.done?.by === p ? Math.round((reqPrice(r) || 0) * 10) / 10 : 0;
 const debt = (all, r) => all.some(v => v.req === r && v.who.includes(r.done?.by));
-// итоги недели n — в её конце, в среду 00:00 МСК: худший балл за неделю (weekMark — средняя оценка за объекты, которые убирал, с учётом обменов + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждый просроченный объект − NOBUY старосте (bossOf) за бумагу − PENALTIES)
+// итоги недели n — в её конце, в среду 00:00 МСК: худший балл за неделю (weekMarks — звёзды за объекты, которые убирал + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждый просроченный объект − NOBUY старосте (bossOf) за бумагу − PENALTIES)
 // выполняет самую старую заявку, открытую на тот момент и не занятую прошлыми долгами; сделал её кто-то другой — долг переходит на следующую.
 // Долг сдают до итогов следующей недели; не сдан — минус LATE в каждую неделю, на конце которой он ещё висит, и долг остаётся. Без оценки и просрочки — не участвует, ничья — делают вместе.
+// Неделя с обменом объектами (subs с ok) — без проигравшего (swap): у отдавшего объект звёзд нет, у взявшего — за два, гонка нечестная.
+// Баллы за неё всё равно копятся в рейтинге, долги и штрафы за несданное считаются как обычно.
 // Комментарии на балл не влияют; оценку после среды страница менять не даёт, чтобы итог не менялся задним числом
-// Итоги всех недель по порядку: [{n, min, who, req, fines}], fines — [кто, заявка] за несданные к итогам недели n долги
+// Итоги всех недель по порядку: [{n, min, who, req, fines, swap}], fines — [кто, заявка] за несданные к итогам недели n долги
 const paid = v => v.req?.done && v.who.includes(v.req.done.by) ? v.req.done.ts : Infinity;
 function verdicts(marks, requests, trashOut, cleaned, accepted, lw = [], deeds = [], subs = {}, bs = {}, now = Date.now()) {
   const all = [];
   for (let n = 0, at = due(0); at <= now; at = due(++n)) {
     const fines = all.filter(v => v.req && paid(v) >= at).flatMap(v => v.who.map(p => [p, v.req]));
     const score = people.flatMap(p => {
-      const s = weekMark(marks, subs, n, p), b = bossOf(bs, n) === p && nobuy(lw, n, now);
+      const sm = weekMarks(marks, subs, bs, cleaned, accepted, n, p, now), s = sm.reduce((a, x) => a + x, 0), b = bossOf(bs, n) === p && nobuy(lw, n, now);
       // итог первой недели подведён, когда вынос стоил 2 и по 1, — задним числом не меняем (в рейтинге за всё время — уже по-новому)
       const t = trashCap(trashOut).filter(o => Math.floor((o.ts - START) / WEEK) === n).reduce((a, o) => a + trashPts(o, p) * (o.ts < due(0) ? 2 : 1), 0), l = slots(subs, n, p).filter(q => late(cleaned, accepted, q, n)).length;
       const g = deeds.filter(d => d.by === p && Math.floor((deedAt(d) - START) / WEEK) === n).length * DEED;
       const q = requests.filter(r => Math.floor((r.ok - START) / WEEK) === n && !debt(all, r)).reduce((a, r) => a + reqPts(r, p), 0);
       const o = fines.filter(f => f[0] === p).length, f = penalty(p, n);
-      return s || l || b || o || f ? [[p, Math.round(((s || 0) + t + g + q - (l + o) * LATE - b * NOBUY - f) * 100) / 100]] : [];
+      return sm.length || l || b || o || f ? [[p, Math.round((s + t + g + q - (l + o) * LATE - b * NOBUY - f) * 100) / 100]] : [];
     });
-    const min = Math.min(...score.map(x => x[1])), who = score.filter(x => x[1] === min).map(x => x[0]);
-    all.push({n, min, who, fines, req: who.length ? requests.filter(r => r.ts < at && !all.some(v => v.req === r) && (!r.done || r.done.ts >= at && who.includes(r.done.by))).sort((a, b) => a.ts - b.ts)[0] : undefined});
+    const swap = Object.values(subs[n] || {}).some(x => x?.ok);
+    const min = Math.min(...score.map(x => x[1])), who = swap ? [] : score.filter(x => x[1] === min).map(x => x[0]);
+    all.push({n, min, who, fines, swap, req: who.length ? requests.filter(r => r.ts < at && !all.some(v => v.req === r) && (!r.done || r.done.ts >= at && who.includes(r.done.by))).sort((a, b) => a.ts - b.ts)[0] : undefined});
   }
   return all;
 }
 const verdict = (...a) => verdicts(...a).at(-1) || {n: -1, min: Infinity, who: [], fines: []};
-if (typeof module === 'object') module.exports = {people, bosses, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, weekMark, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPrice, reqPts, debt, PENALTIES, penalty, lows, nobuy, paid, verdicts, verdict};
+if (typeof module === 'object') module.exports = {people, bosses, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, objMark, weekMarks, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPrice, reqPts, debt, PENALTIES, penalty, lows, nobuy, paid, verdicts, verdict};

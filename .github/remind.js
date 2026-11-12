@@ -9,6 +9,7 @@ fetch(ALL).then(r => r.json()).then(d => {
   if (Date.now() >= monday(w)) return send('🧹 Уборка началась', `Сдать до среды 00:00\n👑 Староста: ${bossOf(bs, w)}\n` + people.map((p, i) => { const c = cleaner(subs, w, p); return `${objects[mod(i - w)].join(' ')} — ${c}${c !== p ? ' (за ' + vin(p) + ')' : ''}`; }).join('\n'), 'clean');
   const v = verdict(d?.marks || {}, Object.values(d?.requests || {}), Object.values(d?.trashOut || {}), d?.cleaned || {}, d?.accepted || {}, lows(d?.paper, Object.values(d?.buys || {})), Object.values(d?.deeds || {}), subs, bs);
   if (v.n < 0) return;
-  return send('⚖️ Итоги недели', !v.who.length ? 'Оценок и просрочек за неделю не было — без штрафа'
+  return send('⚖️ Итоги недели', v.swap ? 'На неделе был обмен объектами — без проигравшего. Баллы за неделю идут в рейтинг'
+    : !v.who.length ? 'Оценок и просрочек за неделю не было — без штрафа'
     : `👎 Худший рейтинг: ${v.who.join(' и ')} (${v.min.toFixed(1)} ★)\n` + (v.req ? `🔧 Выполняет заявку: ${v.req.text}` : 'Открытых заявок нет — повезло'), 'clean');
 });
