@@ -1,8 +1,27 @@
 // Общее для страницы и напоминаний (.github/remind.js, .github/trash.js)
+// состав и объекты: по умолчанию — отсюда; если в базе есть cfg (правит админ) — оттуда (useCfg после каждой загрузки, массивы меняются на месте)
 const people = ['Миша', 'Паша', 'Максим', 'Карим']; // убирают
 const members = [...people, 'Катя']; // все на сайте: Катя не убирает, но оценивает, голосует, пишет заявки
 const bosses = ['Максим', 'Паша', 'Карим', 'Миша']; // староста по очереди, начиная с этой недели
 const objects =[['🧽', 'Поверхности'], ['🚪', 'Коридор'], ['🚽', 'Туалет'], ['🛋️', 'Кухня + гостиная']];
+// объект k-го по очереди (объекты сдвигаются на одного каждую неделю: objAt(i - w)); убирающих столько же, сколько объектов — следит админка
+const objAt = k => objects[(k % objects.length + objects.length) % objects.length];
+// баллы, выданные (pts > 0) и снятые (pts < 0) админом: bonus в базе — {who, pts, why, ts}
+const ADJ = [];
+// cfg в базе: people {имя: порядок} — убирают, guests {имя: порядок} — не убирают (Катя), bosses {имя: порядок} — очередь старост,
+// objects [[эмодзи, название]] — по одному на убирающего. Правила базы берут имена тоже из cfg
+function useCfg(d) {
+  const c = d?.cfg, ord = o => Object.keys(o || {}).sort((a, b) => o[a] - o[b]), set = (a, b) => a.splice(0, a.length, ...b);
+  if (ord(c?.people).length) {
+    set(people, ord(c.people));
+    set(members, [...people, ...ord(c.guests).filter(p => !people.includes(p))]);
+    const b = ord(c.bosses).filter(p => people.includes(p));
+    set(bosses, [...b, ...people.filter(p => !b.includes(p))]);
+    const o = Object.values(c.objects || {}).filter(x => Array.isArray(x) && x.length === 2);
+    if (o.length) set(objects, o);
+  }
+  set(ADJ, Object.values(d?.bonus || {}).filter(x => typeof x?.who === 'string' && Number.isFinite(x.pts) && typeof x.ts === 'number'));
+}
 // неделя — со среды 00:00 МСК по вторник; итоги и срок уборки — в её конце. Неделя 0 — с 21.10 (приложение — с 26.10)
 const START = Date.UTC(2026, 9, 20, 21);
 const WEEK = 7 * 864e5;
@@ -52,12 +71,12 @@ function fixSubs(raw) {
 }
 // имя в винительном (за Мишу, за Максима) и родительном (объект Миши, вместо Максима) — для Миша/Паша/Максим/Карим
 const vin = n => /а$/.test(n) ? n.slice(0, -1) + 'у' : n + 'а', rod = n => /а$/.test(n) ? n.slice(0, -1) + 'и' : n + 'а';
-const nextBoss = (n, p) => { let m = n + 1; while (bosses[m % 4] !== p) m++; return m; };
+const nextBoss = (n, p) => { let m = n + 1; while (bosses[m % bosses.length] !== p && m < n + 99) m++; return m; };
 function fixBoss(raw) {
   const out = {};
   for (const n of Object.keys(raw || {})) {
     const x = raw[n], k = +n;
-    if (!x || !people.includes(x.to) || x.from !== bosses[k % 4] || x.to === x.from || typeof x.ts !== 'number') continue;
+    if (!x || !people.includes(x.to) || x.from !== bosses[k % bosses.length] || x.to === x.from || typeof x.ts !== 'number') continue;
     if (x.back !== undefined && !(raw[x.back]?.ok && raw[x.back].to === x.from && raw[x.back].from === x.to && nextBoss(x.back, x.from) === k)) continue;
     out[n] = x;
   }
@@ -66,7 +85,7 @@ function fixBoss(raw) {
 // кто убирает объект владельца p в неделю n; какие объекты (по владельцу) убирает p; кто староста недели n
 const cleaner = (subs, n, p) => subs?.[n]?.[p]?.ok ? subs[n][p].to : p;
 const slots = (subs, n, p) => people.filter(q => cleaner(subs, n, q) === p);
-const bossOf = (bs, n) => bs?.[n]?.ok ? bs[n].to : bosses[n % 4];
+const bossOf = (bs, n) => bs?.[n]?.ok ? bs[n].to : bosses[n % bosses.length];
 // оценка объекта владельца q за неделю n — среднее звёзд. Объект, который убирал староста, оценивают участники:
 // никто не оценил до итогов, а объект сдан в срок — 5 (раньше староста без оценок оставался без звёзд за неделю)
 const objMark = (marks, subs, bs, cleaned, accepted, n, q, now = Date.now()) =>
@@ -90,9 +109,11 @@ function deedAt(d) {
 // бумага: когда стало «мало» (≤2), страница пишет paper.low, покупка переносит его в buys[].low. Староста недели n не купил
 // за сутки с момента «мало» (или с начала своей недели, если мало стало раньше) — минус NOBUY баллов ему в эту неделю
 const NOBUY = 1, DAY = 864e5;
-// штрафы вручную: [кто, когда, баллов, за что] — вычитаются в неделю, на которую приходится «когда», и в рейтинге за всё время
+// штрафы вручную: [кто, когда, баллов, за что] — вычитаются в неделю, на которую приходится «когда», и в рейтинге за всё время.
+// Новые штрафы и бонусы даёт админ (ADJ из базы). adj — все ручные баллы {who, ts, pts, why}; penalty — сумма снятого (бонус — с минусом)
 const PENALTIES = [['Карим', Date.UTC(2026, 10, 9, 12), 1.5, 'сам назначил цену своей заявке']];
-const penalty = (p, n) => PENALTIES.filter(x => x[0] === p && (n === undefined || Math.floor((x[1] - START) / WEEK) === n)).reduce((a, x) => a + x[2], 0);
+const adj = () => [...PENALTIES.map(([who, ts, n, why]) => ({who, ts, pts: -n, why})), ...ADJ];
+const penalty = (p, n) => -adj().filter(x => x.who === p && (n === undefined || Math.floor((x.ts - START) / WEEK) === n)).reduce((a, x) => a + x.pts, 0) || 0;
 const lows = (paper, buys) => [...buys.filter(b => b.low).map(b => [b.low, b.ts]), ...(paper?.low ? [[paper.low, Infinity]] : [])];
 const nobuy = (lows, n, now = Date.now()) => lows.some(([a, b]) => Math.min(b, now, START + (n + 1) * WEEK) - Math.max(a, START + n * WEEK) > DAY);
 // заявка: цену голосуют все участники, price[кто] — 1..5, цена — среднее голосов (без голосов — 0). Сделавший (done) сдаёт старосте,
@@ -129,4 +150,4 @@ function verdicts(marks, requests, trashOut, cleaned, accepted, lw = [], deeds =
   return all;
 }
 const verdict = (...a) => verdicts(...a).at(-1) || {n: -1, min: Infinity, who: [], fines: []};
-if (typeof module === 'object') module.exports = {people, bosses, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, objMark, weekMarks, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPrice, reqPts, debt, PENALTIES, penalty, lows, nobuy, paid, verdicts, verdict};
+if (typeof module === 'object') module.exports = {people, members, bosses, objAt, ADJ, useCfg, adj, fixSubs, fixBoss, nextBoss, vin, rod, cleaner, slots, bossOf, objMark, weekMarks, objects, START, WEEK, TOPIC, SITE, DB, ALL, LATE, DEED, NOBUY, DAY, TRASH, trashPts, trashCap, avg, due, monday, late, deedAt, reqPrice, reqPts, debt, PENALTIES, penalty, lows, nobuy, paid, verdicts, verdict};

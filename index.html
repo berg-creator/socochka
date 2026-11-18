@@ -114,8 +114,8 @@ button{cursor:pointer}
 .day.ok::after{background:var(--green)}
 .dayinfo{border-top:1px solid var(--line);margin-top:10px;padding-top:10px;display:grid;gap:4px}
 .link{border:0;background:none;padding:4px 0;color:var(--gold);text-align:left}
-/* гость (не вошёл) — только смотрит: формы и кнопки действий скрыты, лайки видны, но не жмутся */
-.guest section form,.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed],[data-price],[data-ok],[data-undo],[data-sub],[data-sub-ok],[data-sub-no],[data-bsub],[data-bsub-ok],[data-bsub-no]){display:none}
+/* гость (не вошёл) и админ вне своей вкладки — только смотрят: формы и кнопки действий скрыты, лайки видны, но не жмутся */
+.guest section form:not(#aRoot form),.guest details:has(>form),.guest #with,.guest :is([data-del],[data-edit],[data-trash],[data-buy],[data-paper],[data-paid],[data-claim],[data-unclaim],[data-cleaned],[data-accept],[data-vote],[data-reply],[data-propose],[data-mark],[data-done],[data-deed],[data-price],[data-ok],[data-undo],[data-sub],[data-sub-ok],[data-sub-no],[data-bsub],[data-bsub-ok],[data-bsub-no]){display:none}
 .guest [data-like]{pointer-events:none}
 </style>
 </head>
@@ -194,12 +194,12 @@ const kinds = {fix: '🔧', buy: '🛒'};
 const weekNow = (t = new Date()) => Math.floor((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - START) / WEEK);
 const today = weekNow();
 let w = today, shownW, tab, reviews = [], marks = {}, cleaned = {}, accepted = {}, subs = {}, bs = {}, paper = null, scores = {}, trash = null, trashOut = [], buys = [], requests = [], events = [], deeds = [], note = 'Загрузка…';
-let logins = {}, tok = {}; try { tok = JSON.parse(localStorage.tok) || {}; } catch {}
+let raw = {}, myCode, codeAt = 0, logins = {}, tok = {}; try { tok = JSON.parse(localStorage.tok) || {}; } catch {}
 let me = tok.name || '';
 let cal = new Date(), sel = '';
 cal.setDate(1);
 
-const mod = n => (n % 4 + 4) % 4;
+const mod = n => (n % bosses.length + bosses.length) % bosses.length;
 const fmt = d => new Date(d).toLocaleDateString('ru-RU', {day: 'numeric', month: 'long', timeZone: 'Europe/Moscow'});
 // начало недели n; неделя 0 — с 26.10, раньше приложения не было
 const since = n => fmt(Math.max(START + n * WEEK, Date.UTC(2026, 9, 26)));
@@ -268,7 +268,10 @@ function bossSwap() {
 }
 
 function render() {
-  $('me').textContent = me ? me + ' · выйти' : '👀 Гость · войти'; if (me) $('login').hidden = true; document.body.classList.toggle('guest', !me);
+  if (me === ADMIN && !isAdmin()) { tok = {}; me = ''; try { localStorage.removeItem('tok'); } catch {} } // сессия админа кончилась
+  $('me').textContent = me ? (me === ADMIN ? '🔑 ' : '') + me + ' · выйти' : '👀 Гость · войти'; if (me) $('login').hidden = true; document.body.classList.toggle('guest', !me || me === ADMIN);
+  document.querySelector('.tabs a[href="#my"]').innerHTML = me === ADMIN ? '<b>🔑</b>Админ' : '<b>👤</b>Я';
+  if (people.includes(me)) getCode();
   const tIso = iso(new Date()), nowBoss = bossOf(bs, today);
   const up = events.filter(e => e.date >= tIso).sort(byWhen), open = requests.filter(r => !r.ok);
   const lw = lows(paper, buys), all = verdicts(marks, requests, trashOut, cleaned, accepted, lw, deeds, subs, bs), v = all.at(-1) || {n: -1, who: []}, vw = v.who.join(' и '), vr = vw ? v.req : null;
@@ -294,7 +297,7 @@ function render() {
   // каждую неделю объекты сдвигаются вниз на одного человека
   // пока открыта форма комментария, живое обновление её не стирает; при закрытии список перерисуется
   if (w !== shownW || !$('list').querySelector('details[open]')) $('list').innerHTML = people.map((p, i) => {
-    const [icon, obj] = objects[mod(i - w)], c = cleaner(subs, w, p); // c — кто убирает объект p на этой неделе (с учётом обмена)
+    const [icon, obj] = objAt(i - w), c = cleaner(subs, w, p); // c — кто убирает объект p на этой неделе (с учётом обмена)
     const mine = reviews.filter(r => r.week === w && r.who === p);
     const done = cleaned[w]?.[p];
     const acc = accepted[w]?.[p];
@@ -326,7 +329,7 @@ function render() {
   }).sort((a, b) => b[1] - a[1]); // звёзды за все уборки + trashPts за вынос мусора + DEED за доброе дело + reqPts за заявки − LATE за каждую просроченную уборку − NOBUY за бумагу − штрафы (PENALTIES)
   // просроченные объекты p: [неделя, чей объект] — за свой и за тот, что взял по обмену
   function lates(p) { return Array.from({length: v.n + 1}, (_, n) => slots(subs, n, p).filter(q => late(cleaned, accepted, q, n)).map(q => [n, q])).flat(); }
-  const extra = (s, t, l, b, g, q, f) => (s ? `⭐ +${+s.toFixed(1)}` : 'уборка без оценок') + (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '') + (f ? ` · ⚖️ −${f}` : '');
+  const extra = (s, t, l, b, g, q, f) => (s ? `⭐ +${+s.toFixed(1)}` : 'уборка без оценок') + (t ? ` · 🗑 +${t}` : '') + (g ? ` · 🌟 +${g}` : '') + (q ? ` · 🔧 +${+q.toFixed(1)}` : '') + (l ? ` · ⏰ ${l} (−${l * LATE})` : '') + (b ? ` · 🧻 −${b * NOBUY}` : '') + (f ? ` · ⚖️ ${f > 0 ? '−' : '+'}${+Math.abs(f).toFixed(1)}` : '');
   // история баллов — новые сверху; открытые карточки остаются открытыми после обновления данных
   const hist = p => [
     ...Array.from({length: today + 1}, (_, n) => slots(subs, n, p).map(q => [q, objMark(marks, subs, bs, cleaned, accepted, n, q)]).filter(x => x[1]).map(([q, x]) => { const k = Object.keys(marks[n]?.[q] || {});
@@ -337,12 +340,12 @@ function render() {
     ...nb(p).map(n => [START + n * WEEK, '🧻', `Не купил бумагу за сутки, неделя с ${since(n)}`, '−' + NOBUY]),
     ...deeds.filter(d => d.at && d.by === p).map(d => [d.at, '🌟', `Доброе дело: ${esc(d.text)}, ${d.at === d.ts + DAY ? 'никто не был против' : 'засчитали ' + esc(d.up.join(', '))}`, '+' + DEED]),
     ...requests.filter(r => reqPts(r, p) && !debt(all, r)).map(r => [r.ok, '🔧', `Заявка: ${esc(r.text)}, приняли ${stamp(r.ok)}`, '+' + reqPts(r, p)]),
-    ...PENALTIES.filter(x => x[0] === p).map(([, at, n, why]) => [at, '⚖️', `Штраф: ${esc(why)}`, '−' + n])
+    ...adj().filter(x => x.who === p).map(x => [x.ts, '⚖️', `${x.pts < 0 ? 'Штраф' : 'Бонус'}: ${esc(x.why)}`, (x.pts < 0 ? '−' : '+') + Math.abs(x.pts)])
   ].sort((a, b) => b[0] - a[0]).map(([, i, t, d]) => `<div class="rev">${i} ${t} — <b>${d}</b></div>`).join('')
     + '<div class="rev muted small">Балл = звёзды за все уборки + мусор + добрые дела + заявки − просрочки и штрафы</div>';
   const was = [...$('rating').querySelectorAll('details[open]')].map(d => d.dataset.p);
   $('rating').innerHTML = note || rank.map(([p, sum, n, t, l, b, g, q, f], i) =>
-    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${['🥇', '🥈', '🥉', '🧹'][i]}</span><div><div class="name">${p}${lead?.[0] === p ? ' <span title="Почтальон недели — рекорд мини-игры">📬</span>' : ''}</div><div class="muted">${extra(n, t, l, b, g, q, f)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q || f ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
+    `<details class="row hist" data-p="${p}"${was.includes(p) ? ' open' : ''}><summary class="head"><span class="icon">${(['🥇', '🥈', '🥉'][i] || '🧹')}</span><div><div class="name">${p}${lead?.[0] === p ? ' <span title="Почтальон недели — рекорд мини-игры">📬</span>' : ''}</div><div class="muted">${extra(n, t, l, b, g, q, f)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${n || t || l || b || g || q || f ? sum.toFixed(1) + ' ★' : '—'}</span></summary>${hist(p)}</details>`
   ).join('');
 
   // итоги прошлой недели: худший балл делает самую старую заявку (verdict в shared.js)
@@ -368,18 +371,23 @@ function render() {
   const mineBuys = buys.filter(b => b.by === me && people.some(p => p !== me && !b.paid[p]));
   document.querySelector('.tabs a[href="#my"]').classList.toggle('owe', owe.some(b => !b.claim[me]) || fine);
   // мои объекты на этой неделе: по очереди и по обмену (0, 1 или 2)
-  const i = people.indexOf(me), myObj = slots(subs, today, me).map(q => [q, ...objects[mod(people.indexOf(q) - today)]]);
-  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg, rq] = rank[ri] || [], has = rn || rt || rl || rb || rg || rq, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
+  const i = people.indexOf(me), myObj = slots(subs, today, me).map(q => [q, ...objAt(people.indexOf(q) - today)]);
+  const ri = rank.findIndex(r => r[0] === me), [, sum, rn, rt, rl, rb, rg, rq, rf] = rank[ri] || [], has = rn || rt || rl || rb || rg || rq || rf, about = reviews.filter(r => r.who === me).sort((a, b) => b.week - a.week || b.ts - a.ts);
   const objRow = ([q, oi, on]) => { const [sc, st] = Date.now() < monday(today) ? ['', ''] : state(accepted[today]?.[q], cleaned[today]?.[q]);
     return `<a class="row head ${sc}" href="#clean"><span class="icon">${oi}</span><div class="grow"><div class="name">${on}</div>${q !== me ? `<div class="muted small">🤝 за ${vin(q)}</div>` : ''}</div>${st && `<span class="end badge ${sc}">${st}</span>`}</a>`; }, ho = $('my').querySelector('[data-k="hist"]')?.open;
-  $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2>${myObj.map(objRow).join('') || `<p class="muted">Свободен — твой объект убирает ${cleaner(subs, today, me)} по обмену</p>`}`
+  if (me !== ADMIN) $('my').innerHTML = !me ? '<p class="muted">Выбери вверху, кто ты</p>' : note || (i < 0 ? '' : `<h2>На этой неделе</h2>${myObj.map(objRow).join('') || `<p class="muted">Свободен — твой объект убирает ${cleaner(subs, today, me)} по обмену</p>`}`
       + (fine ? '<h2>Штрафные заявки</h2>' + mine.map(x => `<a class="row head red" href="#home"><span class="icon">👎</span><div class="grow"><div class="name">${esc(x.req.text)}</div><div class="muted small">худший рейтинг, неделя с ${since(x.n)} · ${Date.now() < due(x.n + 1) ? `сдай до ${fmt(due(x.n + 1))} 00:00, иначе −${LATE}` : `просрочено: −${LATE} каждую среду, пока не сдашь`}</div></div></a>`).join('') : '')
-      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? ['🥇', '🥈', '🥉', '🧹'][ri] : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">${extra(rn, rt, rl, rb, rg, rq)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
+      + `<h2>Мой рейтинг</h2><div class="row head"><span class="icon">${has ? (['🥇', '🥈', '🥉'][ri] || '🧹') : '🧹'}</span><div class="grow"><div class="name">${has ? `${ri + 1} место из ${people.length}` : 'Пока без оценок'}</div><div class="muted small">${extra(rn, rt, rl, rb, rg, rq, rf)}</div></div><span class="score${sum < 0 ? ' neg' : ''}">${has ? sum.toFixed(1) + ' ★' : '—'}</span></div>`
       + `<details class="fold" data-k="hist"${ho ? ' open' : ''}><summary>История баллов</summary>${hist(me)}</details>`
       + (about.length ? `<details class="fold"><summary>Комментарии обо мне (${about.length})</summary>${about.map(r => `<div class="row"><span class="muted small">неделя с ${since(r.week)}</span>${comment(r)}</div>`).join('')}</details>` : ''))
     + '<h2>С тебя</h2>' + (owe.map(b => `<div class="row head"><span class="icon">🧻</span><div class="grow"><div class="name">${share(b)} ₽ → ${esc(b.by)}</div><div class="muted small">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽, ${short(new Date(b.ts))}</div></div>${b.claim[me] ? `<span class="end muted small">ждёт, что ${esc(b.by)} подтвердит</span>` : `<button class="end" data-claim="${esc(b.id)}">Отдал</button>`}</div>`).join('') || '<p class="muted">Ничего 👌</p>')
     + (mineBuys.length ? '<h2>Тебе должны</h2>' + mineBuys.map(b => `<div class="row"><div class="head"><span class="icon">🧻</span><div class="grow"><div class="name">${b.n} ${plural(b.n, ['рулон', 'рулона', 'рулонов'])} за ${b.price} ₽</div><div class="muted small">${short(new Date(b.ts))}, по ${share(b)} ₽</div></div><button class="del" data-del="buys" data-id="${esc(b.id)}" title="Удалить покупку">🗑</button></div>`
       + people.filter(p => p !== me).map(p => `<div class="rev">${b.paid[p] ? `✓ ${p} отдал` : `${p} — ${share(b)} ₽${b.claim[p] ? ' · говорит, что отдал' : ''} <button data-paid="${esc(b.id)}" data-name="${p}">получил</button>${b.claim[p] ? ` <button data-unclaim="${esc(b.id)}" data-name="${p}">не получал</button>` : ''}`}</div>`).join('') + '</div>').join('') : '');
+  // код дня для входа админа: спрятан под тап, чтобы не светить через плечо
+  if (people.includes(me) && myCode !== undefined) $('my').insertAdjacentHTML('beforeend', `<h2>🔑 Код для админки</h2><details class="row"><summary>Показать код на сегодня</summary>`
+    + (myCode?.exp > Date.now() ? `<div class="name" style="font-size:32px;letter-spacing:.1em">${esc(myCode.c)}</div><p class="muted small">Действует до 00:00 МСК. В админку пускают, только когда введены коды всех, кто убирает, — называй свой, только если согласен. Админ меняет всё: состав, баллы, данные и сами правила приложения</p>`
+      : `<p class="muted small">${myCode === null ? 'Загрузка…' : 'Код ещё не обновился — сервис админки сейчас не работает'}</p>`) + '</details>');
+  if (me === ADMIN) adminPanel();
 
   // заявка: цену голосуют все до приёма; сделавший сдаёт старосте, а сдачу самого старосты принимает любой другой участник
   const reqRow = r => {
@@ -446,10 +454,10 @@ const KEY = 'AIzaSyBihJLt8BBSvSz6j9fx_kUX8JBgQeDRsZs', IDT = 'https://identityto
 const post = (url, body, type = 'application/json') => fetch(`${url}?key=${KEY}`, {method: 'POST', headers: {'Content-Type': type}, body})
   .then(r => r.json()).catch(() => ({error: {message: 'NET'}}));
 function keep(name, r) {
-  tok = {name, id: r.idToken || r.id_token, rt: r.refreshToken || r.refresh_token, exp: Date.now() + ((r.expiresIn || r.expires_in) - 60) * 1000};
+  tok = {...(tok.name === name ? tok : {}), name, id: r.idToken || r.id_token, rt: r.refreshToken || r.refresh_token, exp: Date.now() + ((r.expiresIn || r.expires_in) - 60) * 1000};
   me = name; try { localStorage.tok = JSON.stringify(tok); } catch {}
 }
-function logOut() { tok = {}; me = ''; try { localStorage.removeItem('tok'); } catch {} render(); }
+function logOut() { tok = {}; me = ''; myCode = undefined; codeAt = 0; try { localStorage.removeItem('tok'); } catch {} render(); }
 // '' — вошёл, иначе текст ошибки
 async function logIn(name, password) {
   const login = Object.keys(logins).find(k => logins[k] === name);
@@ -472,6 +480,47 @@ async function idToken() {
   return tok.id;
 }
 
+// Админ — отдельный аккаунт: на устройстве сам заводится adm-…@socochka.app со случайным паролем, а права даёт сессия на 3 часа,
+// которую открывает сервис на виртуалке (vm/admind.mjs), если введены коды дня всех убирающих (по 2 цифры, в любом порядке).
+// Коды каждый видит у себя во вкладке «Я»; меняются каждый день в 00:00 МСК. 5 неверных попыток за полчаса — вход закрыт на полчаса
+const ADMIN = 'Админ', isAdmin = () => me === ADMIN && tok.until > Date.now();
+async function adminIn(codes) {
+  let a = {}; try { a = JSON.parse(localStorage.adm) || {}; } catch {}
+  const rnd = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => (x % 36).toString(36)).join('');
+  if (!a.email) a = {email: `adm-${rnd(10)}@socochka.app`, pw: rnd(24)};
+  const body = JSON.stringify({email: a.email, password: a.pw, returnSecureToken: true});
+  let r = await post(IDT + 'signInWithPassword', body);
+  if (r.error?.message !== 'NET' && r.error) r = await post(IDT + 'signUp', body);
+  if (r.error) return r.error.message === 'NET' ? 'Нет связи' : 'Не вышло: ' + r.error.message;
+  try { localStorage.adm = JSON.stringify(a); } catch {}
+  const at = `${DB}/~login/${r.localId}`, q = `.json?auth=${r.idToken}`;
+  if (!(await fetch(at + q, {method: 'PUT', body: JSON.stringify({codes: codes.replace(/\D/g, ''), ts: {'.sv': 'timestamp'}})}).catch(() => null))?.ok) return 'Не отправилось, попробуй ещё раз';
+  for (let i = 0; i < 20; i++) {
+    await new Promise(ok => setTimeout(ok, 1000));
+    const res = await fetch(at + '/res' + q).then(x => x.json()).catch(() => null);
+    if (!res) continue;
+    if (res !== 'ok') return res;
+    const s = await fetch(`${DB}/~admin/${r.localId}${q}`).then(x => x.json()).catch(() => null);
+    tok = {}; keep(ADMIN, r); tok.uid = r.localId; tok.until = s?.until || Date.now() + 36e5;
+    try { localStorage.tok = JSON.stringify(tok); } catch {}
+    return '';
+  }
+  return 'Сервис админки не ответил — он на виртуалке, попробуй позже';
+}
+// код дня для входа админа — у каждого, кто убирает; узел ~codes/имя читает только сам
+async function getCode() {
+  // null — грузится; есть действующий — не трогаем; нет или истёк — спрашиваем не чаще раза в минуту
+  if (!people.includes(me) || myCode === null || myCode?.exp > Date.now() || Date.now() - codeAt < 6e4) return;
+  myCode = null; codeAt = Date.now();
+  myCode = await fetch(`${DB}/~codes/${encodeURIComponent(me)}.json?auth=${await idToken()}`).then(r => r.ok ? r.json() : false).catch(() => false) || false;
+  render();
+}
+let adminJs;
+function adminPanel() {
+  (adminJs ||= new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'admin.js?v=1'; s.onload = ok; s.onerror = () => { adminJs = null; no(); }; document.head.append(s); }))
+    .then(() => admin(), () => { $('my').innerHTML = '<p class="warn">Админка не загрузилась — проверь интернет</p>'; });
+}
+
 function need() {
   if (!me) { alert('Сначала войди вверху: имя и пароль'); $('login').hidden = false; $('login').who.focus(); }
   return !!me;
@@ -492,6 +541,7 @@ async function load() {
     const res = await fetch(ALL);
     if (!res.ok) throw res.status;
     const data = await res.json() || {};
+    useCfg(data); raw = data; fillWho(); // состав, объекты и баллы от админа — из базы (shared.js)
     reviews = Object.entries(data.reviews || {}).map(([id, r]) => ({...r, id, likes: members.filter(p => r?.likes?.[p]),
       replies: Object.entries(r?.replies || {}).map(([id, a]) => ({...a, id})).filter(a => typeof a.text === 'string').sort((a, b) => a.ts - b.ts)}))
       .filter(r => people.includes(r.who) && Number.isInteger(r.week) && typeof r.text === 'string' && r.text);
@@ -520,15 +570,24 @@ async function load() {
 
 $('prev').onclick = () => { if (w > 0) w--; render(); };
 $('next').onclick = () => { w++; render(); };
-$('login').who.innerHTML += members.map(p => `<option>${p}</option>`).join('');
+// кто я: участники из cfg и админ (у него вместо пароля — коды дня)
+function fillWho() {
+  const f = $('login').who, v = f.value;
+  f.innerHTML = '<option value="">Кто я?</option>' + [...members, ADMIN].map(p => `<option value="${esc(p)}">${p === ADMIN ? '🔑 ' : ''}${esc(p)}</option>`).join('');
+  f.value = v;
+}
+fillWho();
+$('login').who.onchange = e => { const a = e.target.value === ADMIN, pw = $('login').pw;
+  pw.placeholder = a ? 'Коды всех, в любом порядке' : 'Пароль'; pw.type = a ? 'text' : 'password'; pw.inputMode = a ? 'numeric' : ''; pw.autocomplete = a ? 'off' : 'current-password'; };
 $('login').onsubmit = async e => {
   e.preventDefault();
   const f = e.target, b = f.querySelector('button');
   b.disabled = true;
-  const err = await logIn(f.who.value, f.pw.value);
+  const err = f.who.value === ADMIN ? await adminIn(f.pw.value) : await logIn(f.who.value, f.pw.value);
   b.disabled = false;
   if (err) return alert(err);
-  f.reset(); render();
+  f.reset(); f.who.onchange({target: f.who}); render();
+  if (isAdmin()) location.hash = 'my';
 };
 // гость — по умолчанию: форма входа спрятана, открывается кнопкой вверху
 $('me').onclick = () => {

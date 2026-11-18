@@ -1,12 +1,13 @@
 // Напоминания в ntfy (график и итоги — как на странице): в среду 00:00 МСК — итоги прошедшей недели, в понедельник 00:00 — началась уборка, кто что убирает
-const {people, objects, START, WEEK, TOPIC, SITE, ALL, lows, verdict, monday, fixSubs, fixBoss, cleaner, bossOf, vin} = require('../shared.js');
+const {people, objAt, useCfg, START, WEEK, TOPIC, SITE, ALL, lows, verdict, monday, fixSubs, fixBoss, cleaner, bossOf, vin} = require('../shared.js');
 const send = (title, message, tab) => fetch('https://ntfy.sh/', {method: 'POST', body: JSON.stringify({topic: TOPIC, title, message, click: SITE + '#' + tab})})
   .then(r => { if (!r.ok) throw r.status; });
-const mod = n => (n % 4 + 4) % 4, w = Math.floor((Date.now() - START) / WEEK);
+const w = Math.floor((Date.now() - START) / WEEK);
 fetch(ALL).then(r => r.json()).then(d => {
+  useCfg(d); // состав и объекты из базы (cfg — правит админ)
   const subs = fixSubs(d?.subs), bs = fixBoss(d?.bossSubs);
   // за кого убирает — по обмену (subs в shared.js)
-  if (Date.now() >= monday(w)) return send('🧹 Уборка началась', `Сдать до среды 00:00\n👑 Староста: ${bossOf(bs, w)}\n` + people.map((p, i) => { const c = cleaner(subs, w, p); return `${objects[mod(i - w)].join(' ')} — ${c}${c !== p ? ' (за ' + vin(p) + ')' : ''}`; }).join('\n'), 'clean');
+  if (Date.now() >= monday(w)) return send('🧹 Уборка началась', `Сдать до среды 00:00\n👑 Староста: ${bossOf(bs, w)}\n` + people.map((p, i) => { const c = cleaner(subs, w, p); return `${objAt(i - w).join(' ')} — ${c}${c !== p ? ' (за ' + vin(p) + ')' : ''}`; }).join('\n'), 'clean');
   const v = verdict(d?.marks || {}, Object.values(d?.requests || {}), Object.values(d?.trashOut || {}), d?.cleaned || {}, d?.accepted || {}, lows(d?.paper, Object.values(d?.buys || {})), Object.values(d?.deeds || {}), subs, bs);
   if (v.n < 0) return;
   return send('⚖️ Итоги недели', v.swap ? 'На неделе был обмен объектами — без проигравшего. Баллы за неделю идут в рейтинг'

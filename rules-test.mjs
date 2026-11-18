@@ -1,12 +1,15 @@
 // Тест правил базы (database.rules.json) в локальном эмуляторе — живую базу не трогает. Запуск: ./rules.sh test
 // Токен — через ?auth=: в заголовке Authorization эмулятор считает неподписанный токен администраторским и пропускает всё
 const B = 'http://127.0.0.1:9000', NS = '?ns=demo-socochka-default-rtdb';
-const jwt = email => ['{"alg":"none","typ":"JWT"}', JSON.stringify({sub: email, email, iat: 1, exp: 9e9, aud: 'demo-socochka', iss: 'x', user_id: email, firebase: {sign_in_provider: 'password'}}), ''].map(s => Buffer.from(s).toString('base64url')).join('.');
-const as = {Миша: 'misha', Паша: 'pasha', Максим: 'max', Карим: 'karim'};
-const req = (who, method, path, body) => fetch(`${B}/${path}.json${NS}` + (who === 'admin' ? '' : '&auth=' + jwt(as[who] + '@socochka.app')), {method, headers: who === 'admin' ? {Authorization: 'Bearer owner'} : {}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.ok);
+const jwt = (email, uid) => ['{"alg":"none","typ":"JWT"}', JSON.stringify({sub: uid, email, iat: 1, exp: 9e9, aud: 'demo-socochka', iss: 'x', user_id: uid, firebase: {sign_in_provider: 'password'}}), ''].map(s => Buffer.from(s).toString('base64url')).join('.');
+const as = {Миша: 'misha', Паша: 'pasha', Максим: 'max', Карим: 'karim', Петя: 'petya', Катя: 'katya', adm: 'adm-test'};
+// who: 'admin' — владелец базы (как сервис на виртуалке), 'guest' — без входа, иначе имя из as; path может содержать ?запрос
+const req = (who, method, path, body) => { const [p, q] = path.split('?');
+  return fetch(`${B}/${p}.json${NS}` + (q ? '&' + q : '') + (who === 'admin' || who === 'guest' ? '' : '&auth=' + jwt(as[who] + '@socochka.app', as[who] + 'uid')), {method, headers: who === 'admin' ? {Authorization: 'Bearer owner'} : {}, body: body === undefined ? undefined : JSON.stringify(body)}).then(r => r.ok); };
 let bad = 0;
 const t = async (name, want, ...a) => { const got = await req(...a); if (got !== want) bad++; console.log(got === want ? 'OK  ' : 'FAIL', want ? 'можно ' : 'нельзя', name); };
-await req('admin', 'PUT', 'logins', {misha: 'Миша', pasha: 'Паша', max: 'Максим', karim: 'Карим'});
+await req('admin', 'PUT', 'logins', {misha: 'Миша', pasha: 'Паша', max: 'Максим', karim: 'Карим', katya: 'Катя'});
+await req('admin', 'PUT', 'cfg', {people: {Миша: 0, Паша: 1, Максим: 2, Карим: 3}, guests: {Катя: 0}, bosses: {Максим: 0, Паша: 1, Карим: 2, Миша: 3}});
 await t('владелец просит обмен', true, 'Миша', 'PUT', 'subs/10/Миша', {to: 'Паша', ts: 1});
 await t('просить сразу с ok (без back)', false, 'Миша', 'PUT', 'subs/20/Миша', {to: 'Паша', ts: 1, ok: 1});
 await t('просить за чужой объект', false, 'Карим', 'PUT', 'subs/21/Миша', {to: 'Паша', ts: 1});
@@ -37,4 +40,36 @@ await t('удалить свой рекорд', false, 'Карим', 'DELETE', '
 await req('admin', 'PUT', 'requests/r1', {kind: 'fix', text: 'x', by: 'Миша', ts: 1, done: {by: 'Карим', ts: 2}});
 await t('цена заявке, которую сделал сам', false, 'Карим', 'PUT', 'requests/r1/price/Карим', 5);
 await t('цена чужой сделанной заявке', true, 'Паша', 'PUT', 'requests/r1/price/Паша', 3);
+// чтение: публичное — одной выборкой ALL и по прямым путям, скрытые узлы «~» — нет
+await req('admin', 'PUT', '~codes', {Миша: {c: '12', exp: 9e12}, Паша: {c: '34', exp: 9e12}});
+await t('гость читает всё публичное выборкой ALL', true, 'guest', 'GET', '?orderBy="$key"&endAt="~"');
+await t('гость читает корень целиком (со скрытым)', false, 'guest', 'GET', '');
+await t('выборка, захватывающая «~»', false, 'guest', 'GET', '?orderBy="$key"&startAt="~"');
+await t('прямое чтение marks', true, 'guest', 'GET', 'marks');
+await t('прямое чтение ~photos', true, 'guest', 'GET', '~photos/x');
+await t('свой код дня', true, 'Миша', 'GET', '~codes/Миша');
+await t('чужой код дня', false, 'Паша', 'GET', '~codes/Миша');
+await t('все коды разом', false, 'Миша', 'GET', '~codes');
+await t('записать себе код', false, 'Миша', 'PUT', '~codes/Миша', {c: '00', exp: 9e12});
+// вход админа: попытка пишется в ~login/uid, сессию открывает только сервис
+await t('попытка входа со своим uid', true, 'adm', 'PUT', '~login/adm-testuid', {codes: '12345678', ts: {'.sv': 'timestamp'}});
+await t('попытка входа с чужим uid', false, 'adm', 'PUT', '~login/misha', {codes: '1', ts: {'.sv': 'timestamp'}});
+await t('попытка входа с ответом «ok»', false, 'adm', 'PUT', '~login/adm-testuid', {codes: '1', ts: {'.sv': 'timestamp'}, res: 'ok'});
+await t('открыть себе сессию', false, 'adm', 'PUT', '~admin/adm-testuid', {until: 9e12});
+await t('без сессии — бонус', false, 'adm', 'PUT', 'bonus/b1', {who: 'Миша', pts: 2, why: 'x', ts: 1});
+await req('admin', 'PUT', '~admin/adm-testuid', {until: 9e12});
+await t('админ даёт бонус', true, 'adm', 'PUT', 'bonus/b1', {who: 'Миша', pts: 2, why: 'x', ts: 1});
+await t('админ пишет кривой бонус', false, 'adm', 'PUT', 'bonus/b2', {who: 'Миша', pts: 'много', why: 'x', ts: 1});
+await t('админ продлевает себе сессию', false, 'adm', 'PUT', '~admin/adm-testuid/until', 9e13);
+await t('админ пишет коды', false, 'adm', 'PUT', '~codes/Миша', {c: '00', exp: 9e12});
+await t('админ читает свои коды/чужие коды', false, 'adm', 'GET', '~codes');
+await t('Петя (нет в cfg) ставит оценку', false, 'Петя', 'PUT', 'marks/10/Миша/Петя', 4);
+await t('оценка объекту не из cfg', false, 'Миша', 'PUT', 'marks/10/Петя/Миша', 4);
+await t('админ добавляет Петю в состав', true, 'adm', 'PATCH', '', {'cfg/people/Петя': 4, 'logins/petya': 'Петя'});
+await t('Петя (теперь в cfg) ставит оценку', true, 'Петя', 'PUT', 'marks/10/Миша/Петя', 4);
+await req('admin', 'PUT', 'reviews/r9', {week: 1, who: 'Паша', by: 'Миша', text: 'x'});
+await t('Катя лайкает (гость в cfg)', true, 'Катя', 'PUT', 'reviews/r9/likes/Катя', true);
+await t('лайк от имени не из cfg', false, 'Петя', 'PUT', 'reviews/r9/likes/Вася', true);
+await req('admin', 'PUT', '~admin/adm-testuid', {until: 1});
+await t('админ после конца сессии', false, 'adm', 'PUT', 'bonus/b3', {who: 'Миша', pts: 2, why: 'x', ts: 1});
 console.log(bad ? `ПРОВАЛЕНО: ${bad}` : 'все проверки прошли'); process.exit(bad ? 1 : 0);
