@@ -386,7 +386,7 @@ function render() {
   // код дня для входа админа: спрятан под тап, чтобы не светить через плечо
   if (people.includes(me) && myCode !== undefined) $('my').insertAdjacentHTML('beforeend', `<h2>🔑 Код для админки</h2><details class="row"><summary>Показать код на сегодня</summary>`
     + (myCode?.exp > Date.now() ? `<div class="name" style="font-size:32px;letter-spacing:.1em">${esc(myCode.c)}</div><p class="muted small">Действует до 00:00 МСК. В админку пускают, только когда введены коды всех, кто убирает, — называй свой, только если согласен. Админ меняет всё: состав, баллы, данные и сами правила приложения</p>`
-      : `<p class="muted small">${myCode === null ? 'Загрузка…' : 'Код ещё не обновился — сервис админки сейчас не работает'}</p>`) + '</details>');
+      : `<p class="muted small">${myCode === null ? 'Загрузка…' : myCode === 'err' ? 'Не получилось загрузить код — проверь интернет, пробую ещё раз…' : 'Кода на сегодня ещё нет — сервис админки сейчас не работает, пробую ещё раз…'}</p>`) + '</details>');
   if (me === ADMIN) adminPanel();
 
   // заявка: цену голосуют все до приёма; сделавший сдаёт старосте, а сдачу самого старосты принимает любой другой участник
@@ -512,7 +512,10 @@ async function getCode() {
   // null — грузится; есть действующий — не трогаем; нет или истёк — спрашиваем не чаще раза в минуту
   if (!people.includes(me) || myCode === null || myCode?.exp > Date.now() || Date.now() - codeAt < 6e4) return;
   myCode = null; codeAt = Date.now();
-  myCode = await fetch(`${DB}/~codes/${encodeURIComponent(me)}.json?auth=${await idToken()}`).then(r => r.ok ? r.json() : false).catch(() => false) || false;
+  // 'err' — запрос не прошёл (сеть, токен), false — в базе кода нет (не работает сервис); в обоих случаях сами пробуем ещё раз через 30 с
+  const r = await fetch(`${DB}/~codes/${encodeURIComponent(me)}.json?auth=${await idToken()}`).then(r => r.ok ? r.json() : 'err', () => 'err');
+  myCode = r === 'err' ? r : r || false;
+  if (!(myCode?.exp > Date.now())) setTimeout(() => { codeAt = 0; getCode(); }, 3e4);
   render();
 }
 let adminJs;
